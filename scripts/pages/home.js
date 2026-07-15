@@ -78,10 +78,10 @@ export function renderHome(container) {
             data.words.forEach(w => {
                 html += `<li style="margin-bottom:8px;"><strong>${w.word}</strong>: ${w.meaning}<br><small style="color:gray;">Ex: <em>${w.example}</em></small></li>`;
             });
-            html += `</ol><hr style="border:0; border-top:1px solid #ddd; margin:15px 0;">` + renderMiniQuiz(data.quiz);
+            html += `</ol><hr style="border:0; border-top:1px solid #ddd; margin:15px 0;">` + renderMiniQuiz(data.quizzes);
             
             modalBody.innerHTML = html;
-            bindQuizEvents(data.quiz, 'vocab');
+            bindQuizEvents(data.quizzes, 'vocab');
         } catch (e) {
             modalBody.innerHTML = `<p style="color:red; text-align:center;">⚠️ Hubungan AI sibuk. Silakan tutup dan klik kembali!</p>`;
         }
