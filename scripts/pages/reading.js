@@ -224,7 +224,10 @@ export function renderReading(container) {
             progressDiv.style.display = 'none';
             resultZone.style.display = 'block';
             
-            const finalScore = Math.round((score / maxRounds) * 100);
+            // Tambahkan baris penugasan skor global ini tepat sebelum merender halaman skor akhir di /scripts/pages/reading.js
+const finalScore = Math.round((score / maxRounds) * 100);
+if (!window.globalScores) window.globalScores = {};
+window.globalScores.reading = finalScore; // Menyimpan skor membaca ke memori global aplikasi
             
             resultZone.innerHTML = `
                 <div style="font-size:4rem;">🎓</div>
