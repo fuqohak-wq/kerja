@@ -21,7 +21,7 @@ export async function renderProgress(container) {
 
             <div style="background: #fff; padding: 20px; border-radius: 16px; border: 1px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
                 <h3 style="margin-top: 0; color: #202124; font-size: 1.1rem; border-bottom: 2px solid #f1f3f4; padding-bottom: 10px;">📈 Grafik Perkembangan Nilai</h3>
-                <div id="chart-container" style="min-height: 200px; display: flex; align-items: flex-end; justify-content: space-around; gap: 10px; padding-top: 20px; border-bottom: 2px solid #ddd;">
+                <div id="chart-container" style="min-height: 180px; display: flex; align-items: flex-end; justify-content: space-around; gap: 10px; padding-top: 20px; border-bottom: 2px solid #ddd;">
                     </div>
                 <p style="text-align: center; color: #70757a; font-size: 0.8rem; margin-top: 15px;">Grafik diperbarui otomatis berdasarkan riwayat sesi belajar Anda.</p>
             </div>
@@ -32,11 +32,11 @@ export async function renderProgress(container) {
         const res = await fetch('/api/submit-score');
         const data = await res.json();
 
-        // Update Streak & Skor B6
+        // Update nilai Streak & Skor B6 dari server/Google Sheet
         container.querySelector('#streak-count').innerText = `${data.streak || 1} Hari`;
         container.querySelector('#latest-score-b6').innerText = data.scoreB6 || 0;
 
-        // Render Grafik Sederhana Batang (*Bar Chart*)
+        // Render Grafik Batang (Bar Chart)
         const chartArea = container.querySelector('#chart-container');
         if (data.history && data.history.length > 0) {
             chartArea.innerHTML = data.history.map(item => `
@@ -47,12 +47,12 @@ export async function renderProgress(container) {
                 </div>
             `).join('');
         } else {
-            chartArea.innerHTML = `<p style="color: #70757a; width: 100%; text-align: center;">Belum ada data grafik. Selesaikan latihan dan kirim nilai hari ini!</p>`;
+            chartArea.innerHTML = `<p style="color: #70757a; width: 100%; text-align: center; padding: 40px 0;">Belum ada data grafik. Selesaikan latihan dan klik "Saya Selesai Ujian Hari Ini" di beranda!</p>`;
         }
 
     } catch (err) {
-        container.querySelector('#streak-count').innerText = "3 Hari";
+        container.querySelector('#streak-count').innerText = "1 Hari";
         container.querySelector('#latest-score-b6').innerText = "0";
-        container.querySelector('#chart-container').innerHTML = `<p style="color: red; text-align: center;">Gagal memuat data progress.</p>`;
+        container.querySelector('#chart-container').innerHTML = `<p style="color: red; text-align: center; padding: 40px 0;">Gagal memuat data progress dari server.</p>`;
     }
 }
