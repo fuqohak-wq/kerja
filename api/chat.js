@@ -1,3 +1,5 @@
+import { GoogleGenAI } from '@google/genai';
+
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -8,8 +10,9 @@ export default async function handler(req, res) {
 
     try {
         const { message, history, roleplay, level, isFinalReport } = req.body;
-        const apiKey = process.env.GEMINI_API_KEY;
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        
+        // Membaca API Key resmi yang Anda masukkan di dashboard Vercel
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
         let systemPrompt = "";
         if (isFinalReport) {
@@ -25,6 +28,7 @@ export default async function handler(req, res) {
         }
 
         const formattedContents = [];
+        // Menggunakan format teks terstruktur yang kompatibel dengan SDK Baru
         formattedContents.push({ role: 'user', parts: [{ text: `SYSTEM INSTRUCTION: ${systemPrompt}` }] });
         
         if (history && history.length > 0) {
@@ -42,24 +46,13 @@ export default async function handler(req, res) {
             formattedContents.push({ role: 'user', parts: [{ text: "Berikan laporan akhir sekarang." }] });
         }
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: formattedContents })
+        // Memanggil SDK Resmi dengan model universal 'gemini-2.5-flash' yang dijamin aktif
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: formattedContents,
         });
 
-        const data = await response.json();
-        
-        // MENGANGKAP ERROR DARI GOOGLE GEMINI
-        if (data.error) {
-            return res.status(200).json({ reply: `Gemini API Error: ${data.error.message}` });
-        }
-
-        if (!data.candidates || data.candidates.length === 0) {
-            return res.status(200).json({ reply: "Error: Gemini returned empty candidates." });
-        }
-
-        let responseText = data.candidates[0].content.parts[0].text;
+        let responseText = response.text;
 
         if (isFinalReport) {
             responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -69,7 +62,7 @@ export default async function handler(req, res) {
         }
 
     } catch (error) {
-        console.error('Error di API Chat:', error);
-        return res.status(200).json({ reply: `Server Internal Error: ${error.message}` });
+        console.error('Error di SDK Chat:', error);
+        return res.status(200).json({ reply: `Server Error: ${error.message}. Mohon pastikan GEMINI_API_KEY di Vercel sudah benar.` });
     }
 }
