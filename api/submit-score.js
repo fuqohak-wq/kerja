@@ -5,7 +5,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    const GOOGLE_SCRIPT_URL = "URL_WEB_APP_GOOGLE_SCRIPT_ANDA_DISINI"; // Ganti dengan URL deployment Web App Anda
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzfFxfuEbVuN0CEmBzQbaLGywsacI7gPBue45eCKadELkN6mypef1rJ233Xt4FUybXxIQ/exec"; // Ganti dengan URL deployment Web App Anda
 
     if (req.method === 'POST') {
         try {
