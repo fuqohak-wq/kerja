@@ -1,5 +1,3 @@
-import { google } from 'googleapis';
-
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -11,30 +9,18 @@ export default async function handler(req, res) {
     try {
         const { finalScore } = req.body;
 
-        // Validasi Google Credentials dari Environment Variables
-        const auth = new google.auth.GoogleAuth({
-            credentials: {
-                client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-                private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-            },
-            scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+        // SILAKAN TEMPEL URL DARI WEB APP APPS SCRIPT ANDA DI SINI
+        const googleScriptUrl = "https://script.google.com/macros/s/AKfycbzfFxfuEbVuN0CEmBzQbaLGywsacI7gPBue45eCKadELkN6mypef1rJ233Xt4FUybXxIQ/exec";
+
+        const response = await fetch(googleScriptUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ finalScore: finalScore })
         });
 
-        const sheets = google.sheets({ version: 'v4', auth });
-        const spreadsheetId = '1EgSAs2Bygj2oveSmpFjS9TuSkhKzaPXtbTAPC0EbEok';
-        
-        // Update nilai tepat di tab DASHBOARD kolom B6
-        await sheets.spreadsheets.values.update({
-            spreadsheetId,
-            range: 'DASHBOARD!B6',
-            valueInputOption: 'USER_ENTERED',
-            requestBody: {
-                values: [[finalScore]]
-            }
-        });
-
-        return res.status(200).json({ success: true, message: 'Skor akumulasi berhasil dikirim ke B6!' });
+        const result = await response.json();
+        return res.status(200).json(result);
     } catch (error) {
-        return res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: `Google Sheets Connection Error: ${error.message}` });
     }
 }
