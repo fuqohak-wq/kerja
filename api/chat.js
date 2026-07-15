@@ -12,7 +12,7 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Metode tidak diizinkan.' });
     }
 
-    // 2. ROTASI MULTI-KEY SECARA ACAK (Biar Speaking & Report ikut lancar)
+    // 2. ROTASI MULTI-KEY SECARA ACAK
     const keys = [
         process.env.GEMINI_KEY_1,
         process.env.GEMINI_KEY_2,
@@ -25,19 +25,17 @@ export default async function handler(req, res) {
         });
     }
 
-    // Pilih salah satu kunci aktif secara acak
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
     const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeKey}`;
 
     const { message, history, roleplay, level, isFinalReport } = req.body;
 
     try {
-        let prompt = "";
         let requestBody = {};
 
         if (isFinalReport) {
             // MODE A: MEMBUAT LAPORAN EVALUASI AKHIR SPEAKING
-            prompt = `You are an expert English examiner. Based on this chat history: ${JSON.stringify(history)}, generate a comprehensive final speaking evaluation report for a student learning at ${level} level. 
+            const prompt = `You are an expert English examiner. Based on this chat history: ${JSON.stringify(history)}, generate a comprehensive final speaking evaluation report for a student learning at ${level} level. 
             Return JSON format strictly:
             {
               "overall": 85,
@@ -56,35 +54,36 @@ export default async function handler(req, res) {
             };
         } else {
             // MODE B: PERCAKAPAN ROLEPLAY BIASA (CHAT DENGAN AI)
-            // Menyusun riwayat chat agar dipahami oleh API REST Gemini
             const contents = [];
             
-            // Masukkan instruksi sistem di awal percakapan
+            // Format instruksi sistem agar AI tahu dia sedang berperan sebagai apa
             contents.push({
                 role: 'user',
-                parts: [{ text: `System Instruction: Act as a helpful and engaging roleplay partner. Your role is: ${roleplay}. Keep your responses clear, natural, and suitable for a learner at ${level} level. Answer the user now.` }]
+                parts: [{ text: `System Instruction: Act as an engaging roleplay partner. Your role is: ${roleplay}. Keep your responses clear, natural, and suitable for a learner at ${level} level. Max 3 sentences per response. Let's start.` }]
             });
 
-            // Rekonstruksi history chat sebelumnya
+            // PERBAIKAN PENTING: Mengubah riwayat chat dari frontend agar sesuai format baku REST API Gemini
             if (history && history.length > 0) {
                 history.forEach(chat => {
                     contents.push({
                         role: chat.role === 'user' ? 'user' : 'model',
-                        parts: [{ text: chat.text }]
+                        parts: [{ text: chat.text || chat.message || "" }]
                     });
                 });
             }
 
             // Masukkan pesan terbaru dari user
-            contents.push({
-                role: 'user',
-                parts: [{ text: message }]
-            });
+            if (message && message !== "Hello, let's start the conversation.") {
+                contents.push({
+                    role: 'user',
+                    parts: [{ text: message }]
+                });
+            }
 
             requestBody = { contents };
         }
 
-        // Tembak langsung ke REST API
+        // Tembak ke REST API Google Gemini
         const response = await fetch(GEMINI_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -97,18 +96,20 @@ export default async function handler(req, res) {
         }
 
         const data = await response.json();
-        const rawText = data.candidates[0].content.parts[0].text;
+        let rawText = data.candidates[0].content.parts[0].text;
 
         if (isFinalReport) {
-            // Kembalikan objek laporan utuh
+            // Bersihkan teks dari bungkus markdown ```json ... ``` jika ada
+            rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
             return res.status(200).json(JSON.parse(rawText));
         } else {
-            // Kembalikan format balasan teks biasa
-            return res.status(200).json({ reply: rawText });
+            // Kembalikan format balasan teks biasa ke frontend
+            return res.status(200).json({ reply: rawText.trim() });
         }
 
     } catch (err) {
         console.error("Error di API Chat:", err);
+        // Proteksi agar backend tetap mengembalikan JSON valid walau sedang terjadi eror internal
         return res.status(500).json({ error: `Gagal memproses sesi speaking: ${err.message}` });
     }
 }
