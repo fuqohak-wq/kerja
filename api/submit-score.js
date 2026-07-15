@@ -9,7 +9,7 @@ export default async function handler(req, res) {
     try {
         const { finalScore } = req.body;
 
-        // SILAKAN TEMPEL URL DARI WEB APP APPS SCRIPT ANDA DI SINI
+        // TEMPELKAN URL WEB APP DARI GOOGLE APPS SCRIPT ANDA DI BAWAH INI
         const googleScriptUrl = "https://script.google.com/macros/s/AKfycbzfFxfuEbVuN0CEmBzQbaLGywsacI7gPBue45eCKadELkN6mypef1rJ233Xt4FUybXxIQ/exec";
 
         const response = await fetch(googleScriptUrl, {
@@ -21,6 +21,6 @@ export default async function handler(req, res) {
         const result = await response.json();
         return res.status(200).json(result);
     } catch (error) {
-        return res.status(500).json({ error: `Google Sheets Connection Error: ${error.message}` });
+        return res.status(500).json({ success: false, error: error.message });
     }
 }
