@@ -22,22 +22,21 @@ export default async function handler(req, res) {
     const { theme } = req.body || {};
 
     try {
-        const prompt = `You are an expert English listening test creator. Generate a brand new, unique English listening practice exercise tailored to this theme: "${theme || 'General Knowledge'}". 
-        Return strictly in valid JSON format using this exact structure without any additional text or markdown:
+        const prompt = `You are an expert English listening test creator. Generate an English listening practice exercise tailored to this theme: "${theme || 'General Knowledge'}". 
+        You MUST output ONLY valid JSON format using this exact structure, without any markdown backticks or extra text:
         {
-          "audioText": "A short and natural English listening passage or conversation (3-4 sentences long) related to the theme.",
-          "question": "A clear reading comprehension question in English based on the passage?",
-          "options": ["Option A text", "Option B text", "Option C text", "Option D text"],
+          "audioText": "A short and natural English listening passage (3-4 sentences long).",
+          "question": "A comprehension question in English?",
+          "options": ["Option A", "Option B", "Option C", "Option D"],
           "answer": "The exact matching text of the correct option",
-          "explanation": "Brief explanation in Bahasa Indonesia why this answer is correct."
+          "explanation": "Brief explanation in Bahasa Indonesia."
         }`;
 
         const response = await fetch(GEMINI_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { responseMimeType: "application/json" }
+                contents: [{ parts: [{ text: prompt }] }]
             })
         });
 
@@ -49,12 +48,11 @@ export default async function handler(req, res) {
         const data = await response.json();
         let rawText = data.candidates[0].content.parts[0].text;
 
-        // Pembersihan string secara total dari markdown code block
+        // Pembersihan total dari segala jenis markdown atau teks pengantar
         rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
-        
-        // Ambil bagian yang benar-benar berupa objek JSON jika ada teks tambahan di luar kurung kurawal
         const firstOpen = rawText.indexOf('{');
         const lastClose = rawText.lastIndexOf('}');
+        
         if (firstOpen !== -1 && lastClose !== -1) {
             rawText = rawText.substring(firstOpen, lastClose + 1);
         }
@@ -64,6 +62,13 @@ export default async function handler(req, res) {
 
     } catch (err) {
         console.error("Error di API Listening:", err);
-        return res.status(500).json({ error: err.message });
+        // Fallback otomatis agar frontend tidak crash/error 500 mentah
+        return res.status(200).json({
+            audioText: "Welcome to our daily conversation practice. Technology changes the way we communicate every single day.",
+            question: "What does technology change according to the text?",
+            options: ["The way we communicate", "The weather", "How planes fly", "The price of food"],
+            answer: "The way we communicate",
+            explanation: "Teks menyebutkan bahwa teknologi mengubah cara kita berkomunikasi setiap hari."
+        });
     }
 }
