@@ -7,40 +7,42 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     try {
-        const { type } = req.body; // 'vocab' atau 'grammar'
+        const { type } = req.body;
         const apiKey = process.env.GEMINI_API_KEY;
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
         let systemPrompt = "";
         if (type === 'vocab') {
-            systemPrompt = `Bertindaklah sebagai Guru Kosakata Oxford. Buatlah daftar 10 kosakata bahasa Inggris level menengah-atas (B2-C1) secara acak (gunakan seed acak ${Math.random()}). 
-Untuk setiap kata berikan arti Bahasa Indonesia dan satu contoh kalimat pendek. 
-Juga sertakan 1 soal kuis pilihan ganda singkat untuk menguji salah satu kata dari daftar tersebut.
+            systemPrompt = `Kamu adalah Guru Kosakata Oxford. Buatlah daftar 10 kosakata Inggris level B2-C1 secara acak (seed acak ${Math.random()}). 
+Berikan arti Bahasa Indonesia dan satu contoh kalimat pendek. 
+Tulis semuanya dalam SATU BARIS per kata, jangan gunakan pindah baris (enter) di dalam string nilai JSON.
+Sertakan 1 soal kuis pilihan ganda singkat.
 
 Respon WAJIB dalam JSON mentah murni tanpa markdown box:
 {
   "words": [
-    {"word": "Alleviate", "meaning": "Meringankan/meredakan", "example": "A warm bath can alleviate stress."}
+    {"word": "Alleviate", "meaning": "Meringankan atau meredakan", "example": "A warm bath can alleviate stress."}
   ],
   "quiz": {
-    "question": "Which word means 'to make something less severe'?",
+    "question": "Which word means to make something less severe?",
     "options": ["Alleviate", "Aggravate", "Abandon", "Amplify"],
     "answer": "Alleviate",
-    "explanation": "Alleviate berarti meringankan atau meredakan sesuatu yang berat/sakit."
+    "explanation": "Alleviate berarti meringankan sesuatu yang berat."
   }
 }`;
         } else {
-            systemPrompt = `Buatlah 1 materi grammar bahasa Inggris esensial harian secara acak (contoh: Inversion, Gerund, Conditional, Relative Clause) dengan seed acak ${Math.random()}.
-Berikan penjelasan super ringkas (max 3 kalimat) dalam Bahasa Indonesia beserta rumus/contohnya.
-Sertakan juga 1 soal kuis pilihan ganda untuk menguji pemahaman grammar tersebut.
+            systemPrompt = `Buatlah 1 materi grammar bahasa Inggris esensial harian secara acak (seed acak ${Math.random()}).
+Berikan penjelasan super ringkas (max 2 kalimat) dalam Bahasa Indonesia beserta rumus/contohnya.
+Jangan gunakan pindah baris (enter) di dalam string nilai JSON.
+Sertakan 1 soal kuis pilihan ganda.
 
 Respon WAJIB dalam JSON mentah murni tanpa markdown box:
 {
   "topic": "Judul Topik Grammar",
-  "explanation": "Penjelasan materi singkat dalam Bahasa Indonesia.",
-  "formula": "Rumus / Contoh Kalimat utama",
+  "explanation": "Penjelasan materi singkat.",
+  "formula": "Rumus atau Contoh Kalimat utama",
   "quiz": {
-    "question": "Soal kuis grammar (fill in the blank)",
+    "question": "Soal kuis grammar fill in the blank",
     "options": ["Pilihan A", "Pilihan B", "Pilihan C", "Pilihan D"],
     "answer": "Pilihan yang benar",
     "explanation": "Alasan singkat dalam Bahasa Indonesia."
@@ -56,7 +58,10 @@ Respon WAJIB dalam JSON mentah murni tanpa markdown box:
 
         const data = await response.json();
         let rawText = data.candidates[0].content.parts[0].text;
-        rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim().replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+        
+        // Pembersihan Agresif Kebal Eror
+        rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+        rawText = rawText.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
         rawText = rawText.replace(/{\\n/g, '{').replace(/\\n}/g, '}').replace(/,\\n/g, ',');
 
         return res.status(200).json(JSON.parse(rawText));
