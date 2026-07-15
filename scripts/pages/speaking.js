@@ -1,5 +1,5 @@
 export function renderSpeaking(container) {
-    const roles = ['Guru Bahasa Inggris', 'Teman', 'Barista', 'Kasir', 'Petugas Imigrasi', 'Interviewer'];
+    const roles = ['Guru Bahasa Inggris', 'Teman', 'Barista', 'Kasir', 'Guru Agama', 'Kitab Salaf'];
     
     container.innerHTML = `
         <div class="welcome-section">
@@ -87,6 +87,8 @@ export function renderSpeaking(container) {
 
 // ... [Kode bagian atas speaking.js tetap sama] ...
 
+// ... [Kode bagian atas tetap sama] ...
+
     async function getAIResponse(userText) {
         try {
             window.speechSynthesis.cancel();
@@ -104,17 +106,17 @@ export function renderSpeaking(container) {
                 })
             });
 
-            if (!res.ok) throw new Error("Server error");
+            if (!res.ok) throw new Error("Koneksi Vercel bermasalah.");
             const data = await res.json();
             
-            // Ambil teks balasan dengan validasi berlapis
-            const aiReply = data.reply || "I'm sorry, I didn't catch that. Can you say it again?";
+            const aiReply = data.reply || "Error: Tidak ada respons dari server.";
 
-            // Simpan ke riwayat percakapan untuk konteks berikutnya
+            // Simpan ke riwayat
             chatHistory.push({ role: 'user', text: userText });
             chatHistory.push({ role: 'model', text: aiReply });
 
-            statusTxt.innerText = "🔊 AI sedang berbicara...";
+            // TAMPILKAN BALASAN DI LAYAR AGAR BISA DIBACA SAAT TESTING
+            statusTxt.innerHTML = `<span style="color:var(--text-main); font-size:1rem; display:block; margin-bottom:10px;">"${aiReply}"</span> 🔊 AI sedang berbicara...`;
             
             const utterance = new SpeechSynthesisUtterance(aiReply);
             utterance.lang = 'en-US';
@@ -127,11 +129,12 @@ export function renderSpeaking(container) {
 
         } catch(e) {
             console.error(e);
-            statusTxt.innerText = "Gagal memuat respons suara AI.";
-            // Jalankan ulang mic secara otomatis agar telepon tidak mati total
-            setTimeout(startListeningSafely, 1500);
+            statusTxt.innerText = `Sistem Error: ${e.message}`;
+            setTimeout(startListeningSafely, 2000);
         }
     }
+
+// ... [Kode bagian bawah tetap sama] ...
 
 // ... [Kode bagian bawah/tombol akhiri panggilan tetap sama] ...
 
