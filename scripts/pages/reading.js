@@ -1,149 +1,246 @@
-import { fetchQuestionBank } from '../config/sheetsConfig.js';
+export function renderReading(container) {
+    const themes = [
+        { id: 'sosial', label: '👥 Sosial & Masyarakat' },
+        { id: 'bahasa', label: '🗣️ Bahasa & Linguistik' },
+        { id: 'fiqih', label: '📜 Fiqih & Ushul Fiqih' },
+        { id: 'tauhid', label: '🕌 Tauhid & Tasawuf' },
+        { id: 'politik', label: '🏛️ Politik & Tata Negara' },
+        { id: 'agama', label: '📖 Kajian Keagamaan' },
+        { id: 'kesehatan', label: '💪 Kesehatan & Kebugaran' },
+        { id: 'berita_indo', label: '📰 Berita Terbaru Indonesia' },
+        { id: 'berita_dunia', label: '🌍 Berita Mancanegara' },
+        { id: 'ekonomi', label: '📈 Ekonomi & Bisnis' },
+        { id: 'budaya', label: '🎭 Budaya & Seni' },
+        { id: 'asmara', label: '❤️ Cinta & Asmara' },
+        { id: 'sains', label: '🚀 Sains & Teknologi' }
+    ];
 
-let currentQuestions = [];
-let currentIndex = 0;
-let score = 0;
-
-export async function renderReading(container) {
-    container.innerHTML = `
-        <div class="welcome-section">
-            <h2>📖 Reading Practice</h2>
-            <p>Memuat bank soal dari Google Sheets...</p>
-        </div>
-    `;
-
-    // Ambil data dari Google Sheets
-    const data = await fetchQuestionBank();
-    
-    // Filter data yang memiliki konten esensial (menghindari baris kosong)
-    currentQuestions = data.filter(q => q.text || q.artikel || q.q || q.pertanyaan);
-
-    if (currentQuestions.length === 0) {
-        container.innerHTML = `
-            <div class="welcome-section">
-                <h2>📖 Reading Practice</h2>
-                <p style="color:red;">Gagal memuat soal atau Google Sheet kosong. Pastikan akses Sheet adalah 'Public/Anyone with link'.</p>
-                <button id="btn-back-home" class="action-btn">Kembali ke Beranda</button>
-            </div>
-        `;
-        document.getElementById('btn-back-home').addEventListener('click', () => window.location.reload());
-        return;
-    }
-
-    currentIndex = 0;
-    score = 0;
-    showQuestion(container);
-}
-
-function showQuestion(container) {
-    if (currentIndex >= currentQuestions.length) {
-        showResult(container);
-        return;
-    }
-
-    const item = currentQuestions[currentIndex];
-    
-    // Pemetaan nama kolom fleksibel (mendukung format bahasa inggris / indonesia di sheet Anda)
-    const artikelText = item.text || item.artikel || "No Article Text Provided";
-    const judulArtikel = item.judul || item.topic || `Reading Question #${currentIndex + 1}`;
-    const pertanyaanText = item.q || item.pertanyaan || "Answer the question based on the text above:";
-    
-    const optA = item.a || item['pilihan a'] || '';
-    const optB = item.b || item['pilihan b'] || '';
-    const optC = item.c || item['pilihan c'] || '';
-    const optD = item.d || item['pilihan d'] || '';
-    
-    // Ambil kunci jawaban asli (A, B, C, atau D)
-    const correctAnswer = (item.answer || item.jawaban || '').trim().toUpperCase();
-    const pembahasanText = item.pembahasan || item.explanation || "Tidak ada pembahasan untuk soal ini.";
+    let currentRound = 0;
+    const maxRounds = 10;
+    let score = 0;
+    let currentTheme = "";
+    let savedParagraphs = []; // Menyimpan teks agar tidak berubah selama 10 soal satu tema
 
     container.innerHTML = `
         <div class="welcome-section">
-            <h2>📖 ${judulArtikel}</h2>
-            <p>Soal ${currentIndex + 1} dari ${currentQuestions.length} | Level: ${item.level || 'General'}</p>
+            <h2>📖 AI Reading & Vocabulary Academy</h2>
+            <p>Pilih tema artikel. Klik pada kata manapun di dalam teks untuk mengintip artinya dalam Bahasa Indonesia!</p>
         </div>
-
-        <div class="reading-container">
-            <div class="article-box">${artikelText}</div>
-            <div class="question-title">${pertanyaanText}</div>
-            
-            <div class="options-list">
-                <button class="option-btn" data-ans="A"><strong>A.</strong> ${optA}</button>
-                <button class="option-btn" data-ans="B"><strong>B.</strong> ${optB}</button>
-                <button class="option-btn" data-ans="C"><strong>C.</strong> ${optC}</button>
-                <button class="option-btn" data-ans="D"><strong>D.</strong> ${optD}</button>
+        <div class="reading-container" style="max-width:800px; margin:0 auto; padding:10px;">
+            <div id="theme-selector" style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-bottom:25px;">
+                ${themes.map(t => `<button class="option-btn theme-btn" data-theme="${t.label}" style="width:auto; padding:10px 15px;">${t.label}</button>`).join('')}
             </div>
 
-            <div id="explanation-space"></div>
-            <button id="btn-action" class="action-btn" style="display:none;">Pertanyaan Selanjutnya</button>
+            <div id="quiz-progress" style="display:none; font-weight:bold; color:var(--primary-color); margin-bottom:15px; text-align:center;"></div>
+
+            <div id="reading-loading" style="display:none; text-align:center; margin:30px 0; color:var(--primary-color);">
+                <span class="loading-spinner">⏳</span> Menganalisis dan meracik materi artikel baru dari AI...
+            </div>
+
+            <div id="reading-zone" style="display:none;">
+                <div id="dict-popup" style="background:#202124; color:#fff; padding:8px 15px; border-radius:20px; font-size:0.9rem; text-align:center; margin-bottom:15px; display:none; font-weight:500; border-left:4px solid var(--primary-color);"></div>
+
+                <div id="text-article-box" style="background:#fff; border:1px solid #dadce0; padding:25px; border-radius:12px; text-align:left; line-height:1.8; font-size:1.1rem; margin-bottom:25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);"></div>
+
+                <div id="quiz-article-box" style="background:#f8f9fa; border:1px solid #dadce0; padding:20px; border-radius:12px; text-align:left;"></div>
+                
+                <button id="btn-next-reading" class="action-btn" style="background:var(--primary-color); display:none; margin:20px auto 0 auto; width:100%; max-width:400px;">Pertanyaan Selanjutnya ➡️</button>
+            </div>
+
+            <div id="result-zone" style="display:none; text-align:center; padding:30px 10px;"></div>
         </div>
     `;
 
-    const optionButtons = container.querySelectorAll('.option-btn');
-    let hasAnswered = false;
+    const themeSelector = container.querySelector('#theme-selector');
+    const themeButtons = container.querySelectorAll('.theme-btn');
+    const readingZone = container.querySelector('#reading-zone');
+    const loadingDiv = container.querySelector('#reading-loading');
+    const textArticleBox = container.querySelector('#text-article-box');
+    const quizArticleBox = container.querySelector('#quiz-article-box');
+    const nextBtn = container.querySelector('#btn-next-reading');
+    const progressDiv = container.querySelector('#quiz-progress');
+    const dictPopup = container.querySelector('#dict-popup');
+    const resultZone = container.querySelector('#result-zone');
 
-    optionButtons.forEach(btn => {
+    themeButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
-            if (hasAnswered) return;
-            hasAnswered = true;
-
-            const selectedAns = e.currentTarget.getAttribute('data-ans');
+            currentTheme = e.target.getAttribute('data-theme');
+            currentRound = 1;
+            score = 0;
+            savedParagraphs = []; // Reset penampung teks
             
-            // Validasi jawaban benar / salah
-            if (selectedAns === correctAnswer) {
-                e.currentTarget.classList.add('correct');
-                score++;
-            } else {
-                e.currentTarget.classList.add('wrong');
-                // Beri highlight hijau pada jawaban yang seharusnya benar
-                optionButtons.forEach(b => {
-                    if (b.getAttribute('data-ans') === correctAnswer) b.classList.add('correct');
-                });
-            }
-
-            // Tampilkan Pembahasan
-            const explanationSpace = document.getElementById('explanation-space');
-            explanationSpace.innerHTML = `
-                <div class="explanation-box">
-                    <h4>💡 Pembahasan (${correctAnswer}):</h4>
-                    <p>${pembahasanText}</p>
-                </div>
-            `;
-
-            // Tampilkan tombol Lanjut
-            const actionBtn = document.getElementById('btn-action');
-            actionBtn.style.display = 'block';
-            actionBtn.addEventListener('click', () => {
-                currentIndex++;
-                showQuestion(container);
-            });
+            themeSelector.style.display = 'none';
+            resultZone.style.display = 'none';
+            
+            loadReadingSession();
         });
     });
-}
 
-function showResult(container) {
-    const finalScore = Math.round((score / currentQuestions.length) * 100);
-    container.innerHTML = `
-        <div class="welcome-section">
-            <h2>🎉 Selesai Latihan!</h2>
-            <p>Berikut adalah ringkasan hasil membaca kamu hari ini.</p>
-        </div>
+    async function loadReadingSession() {
+        readingZone.style.display = 'none';
+        nextBtn.style.display = 'none';
+        dictPopup.style.display = 'none';
+        loadingDiv.style.display = 'block';
+        quizArticleBox.innerHTML = '';
+        
+        progressDiv.style.display = 'block';
+        progressDiv.innerText = `📝 Tantangan Bacaan ke-${currentRound} dari ${maxRounds} [Skor: ${score}]`;
 
-        <div class="reading-container" style="text-align:center; padding: 40px 20px;">
-            <div style="font-size: 4rem; margin-bottom: 10px;">🏆</div>
-            <h3 style="font-size: 1.5rem; margin-bottom: 8px;">Skor Akhir Anda</h3>
-            <div style="font-size: 3.5rem; font-weight: 700; color: var(--primary-color); margin-bottom: 20px;">
-                ${finalScore} <span style="font-size:1.2rem; color:var(--text-muted);">/ 100</span>
+        try {
+            const res = await fetch('/api/reading', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ theme: `${currentTheme} (acak: ${Math.random()})` })
+            });
+
+            if (!res.ok) throw new Error();
+            
+            let rawText = await res.text();
+            rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+            // Kebal Eror enter data json
+            rawText = rawText.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+            rawText = rawText.replace(/{\\n/g, '{').replace(/\\n}/g, '}').replace(/,\\n/g, ',');
+            
+            const data = JSON.parse(rawText);
+            
+            loadingDiv.style.display = 'none';
+            readingZone.style.display = 'block';
+
+            // Pertahankan teks artikel yang sama di ronde 1, atau perbarui bertahap agar wawasan meluas
+            renderInteractiveText(data);
+            setupQuiz(data);
+
+        } catch (err) {
+            console.error(err);
+            loadingDiv.style.display = 'none';
+            quizArticleBox.innerHTML = `
+                <p style="color:red; text-align:center;">Gagal menyusun modul reading. Mari kita coba buat ulang.</p>
+                <button id="btn-retry-reading" class="action-btn" style="margin:10px auto; display:block;">🔄 Muat Ulang</button>
+            `;
+            container.querySelector('#btn-retry-reading').onclick = loadReadingSession;
+        }
+    }
+
+    // Fungsi canggih untuk memotong kata dan menjadikannya interaktif saat diklik
+    function renderInteractiveText(data) {
+        const paragraphs = [data.paragraph1, data.paragraph2, data.paragraph3];
+        
+        const htmlContent = paragraphs.map(para => {
+            if (!para) return "";
+            // Pisahkan kalimat berdasarkan spasi menjadi kumpulan kata tunggal
+            const words = para.split(/\s+/);
+            const wrappedWords = words.map(word => {
+                // Bersihkan tanda baca untuk pencocokan kamus AI
+                const cleanWord = word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g,"").toLowerCase();
+                return `<span class="reading-clickable-word" data-clean="${cleanWord}" style="cursor:pointer; padding:2px 1px; border-radius:4px; transition:all 0.2s;">${word}</span>`;
+            }).join(' ');
+            return `<p style="margin-bottom:15px; text-align:justify;">${wrappedWords}</p>`;
+        }).join('');
+
+        textArticleBox.innerHTML = htmlContent;
+
+        // Tambahkan event click untuk fitur terjemahan kata instan
+        const wordSpans = textArticleBox.querySelectorAll('.reading-clickable-word');
+        wordSpans.forEach(span => {
+            span.addEventListener('mouseover', (e) => { e.target.style.background = '#e8f0fe'; });
+            span.addEventListener('mouseout', (e) => { e.target.style.background = 'transparent'; });
+            
+            span.addEventListener('click', (e) => {
+                const targetWord = e.target.getAttribute('data-clean');
+                
+                // Cari kecocokan kata di kamus terjemahan dari Gemini
+                let translation = "Arti tidak ditemukan dalam mini-dict.";
+                if (data.vocabularyMap) {
+                    // Cari kecocokan langsung atau parsial
+                    const keys = Object.keys(data.vocabularyMap);
+                    const matchedKey = keys.find(k => targetWord.includes(k.toLowerCase()) || k.toLowerCase().includes(targetWord));
+                    if (matchedKey) {
+                        translation = data.vocabularyMap[matchedKey];
+                    }
+                }
+                
+                // Tampilkan Popup Terjemahan di bagian atas teks
+                dictPopup.style.display = 'block';
+                dictPopup.innerHTML = `🔍 <strong>${e.target.innerText.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g,"")}</strong> &rarr; <span style="color:#8ab4f8;">${translation}</span>`;
+            });
+        });
+    }
+
+    function setupQuiz(data) {
+        quizArticleBox.innerHTML = `
+            <p style="font-size:1.1rem; margin-bottom:15px; font-weight:bold;">Pertanyaan Kuis:<br>${data.question}</p>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                ${data.options.map(opt => `<button class="option-btn read-opt" data-val="${opt}" style="text-align:left; padding:12px; width:100%;">${opt}</button>`).join('')}
             </div>
-            <p style="margin-bottom: 24px; color: var(--text-muted);">
-                Anda menjawab benar <strong>${score}</strong> dari <strong>${currentQuestions.length}</strong> soal.
-            </p>
-            <button id="btn-finish" class="action-btn">Kembali ke Beranda</button>
-        </div>
-    `;
+            <div id="read-quiz-explanation" style="margin-top:20px;"></div>
+        `;
 
-    document.getElementById('btn-finish').addEventListener('click', () => {
-        // Memicu reload/kembali router ke home
-        window.location.reload();
-    });
+        const optButtons = quizArticleBox.querySelectorAll('.read-opt');
+        optButtons.forEach(optBtn => {
+            optBtn.addEventListener('click', (e) => {
+                const selected = e.target.getAttribute('data-val');
+                const expl = quizArticleBox.querySelector('#read-quiz-explanation');
+                
+                optButtons.forEach(b => b.disabled = true);
+                
+                if (selected === data.answer) {
+                    score++;
+                    e.target.style.background = '#e6f4ea';
+                    e.target.style.borderColor = '#34a853';
+                    expl.innerHTML = `
+                        <div style="border-left:4px solid #34a853; background:#f4faf6; padding:15px; border-radius:6px;">
+                            <h4 style="color:#34a853; margin:0 0 5px 0;">🎯 Jawaban Tepat (Excellent!)</h4>
+                            <p style="margin:0; font-size:0.95rem;">${data.explanation}</p>
+                        </div>
+                    `;
+                } else {
+                    e.target.style.background = '#fce8e6';
+                    e.target.style.borderColor = '#ea4335';
+                    expl.innerHTML = `
+                        <div style="border-left:4px solid #ea4335; background:#fdf5f5; padding:15px; border-radius:6px;">
+                            <h4 style="color:#ea4335; margin:0 0 5px 0;">📌 Kurang Tepat</h4>
+                            <p style="margin:0 0 8px 0; font-size:0.95rem;">Kunci Jawaban: <strong>${data.answer}</strong></p>
+                            <p style="margin:0; font-size:0.9rem; color:var(--text-muted);">${data.explanation}</p>
+                        </div>
+                    `;
+                }
+                
+                nextBtn.style.display = 'block';
+                if (currentRound >= maxRounds) {
+                    nextBtn.innerText = "📊 Rangkum Skor Akhir Reading";
+                } else {
+                    nextBtn.innerText = "Pertanyaan Selanjutnya ➡️";
+                }
+            });
+        });
+    }
+
+    nextBtn.onclick = () => {
+        if (currentRound < maxRounds) {
+            currentRound++;
+            loadReadingSession();
+        } else {
+            readingZone.style.display = 'none';
+            progressDiv.style.display = 'none';
+            resultZone.style.display = 'block';
+            
+            const finalScore = Math.round((score / maxRounds) * 100);
+            
+            resultZone.innerHTML = `
+                <div style="font-size:4rem;">🎓</div>
+                <h3 style="margin:15px 0; color:var(--primary-color);">Sesi Evaluasi Reading Selesai!</h3>
+                <p style="font-size:1.2rem; margin-bottom:10px;">Tema Fokus: <strong>${currentTheme}</strong></p>
+                <div class="score-badge" style="display:inline-block; font-size:1.5rem; padding:10px 30px; margin-bottom:25px; background:var(--primary-color); color:#fff; border-radius:30px;">
+                    Nilai Anda: ${finalScore} / 100
+                </div>
+                <p style="color:var(--text-muted); margin-bottom:25px;">Pemahaman Anda tepat pada ${score} dari ${maxRounds} skenario artikel.</p>
+                <button id="btn-restart-reading" class="action-btn" style="width:100%; max-width:400px;">🔄 Ganti Pilihan Tema Baru</button>
+            `;
+            
+            container.querySelector('#btn-restart-reading').onclick = () => {
+                resultZone.style.display = 'none';
+                themeSelector.style.display = 'flex';
+            };
+        }
+    };
 }
