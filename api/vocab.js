@@ -10,6 +10,8 @@ export default async function handler(req, res) {
     if (keys.length === 0) return res.status(500).json({ error: "API Keys tidak ditemukan." });
 
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
+    const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeKey}`;
+
     const { action, currentMaterial } = req.body;
     let prompt = "";
 
@@ -43,7 +45,7 @@ export default async function handler(req, res) {
     }
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeKey}`, {
+        const response = await fetch(GEMINI_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -52,8 +54,15 @@ export default async function handler(req, res) {
             })
         });
 
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error?.message || "Gagal dari Google API");
+        }
+
         const data = await response.json();
-        let rawText = data.candidates[0].content.parts[0].text.replace(/```json/g, "").replace(/```/g, "").trim();
+        let rawText = data.candidates[0].content.parts[0].text;
+        rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+
         return res.status(200).json(JSON.parse(rawText));
     } catch (err) {
         return res.status(500).json({ error: err.message });
