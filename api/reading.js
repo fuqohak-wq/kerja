@@ -29,40 +29,24 @@ export default async function handler(req, res) {
     const { theme } = req.body;
 
     try {
-        const prompt = `You are an expert English reading comprehension test creator. Generate an English reading exercise tailored to this theme: "${theme || 'General Knowledge'}". 
-        The passage must be informative, written in clear English (intermediate B1 level), around 2 to 3 paragraphs long.
-        The output MUST be in strict JSON format without any markdown wrappers, using this exact structure (provide BOTH 'questions' and 'quiz' arrays to prevent any property mismatch):
+        const prompt = `You are an expert English reading comprehension and vocabulary test creator. Generate an English reading exercise tailored to this theme: "${theme || 'General Knowledge'}". 
+        The content must be informative, written in clear English (intermediate B1 level).
+        The output MUST be in strict JSON format without any markdown wrappers, using this exact structure to match frontend expectations:
         {
-          "title": "A catchy title in English",
-          "passage": "The main reading article text in English...",
-          "questions": [
-            {
-              "question": "Reading comprehension question 1 based on the passage?",
-              "options": ["Option A", "Option B", "Option C", "Option D"],
-              "answer": "The exact matching text of the correct option",
-              "explanation": "Brief explanation in Bahasa Indonesia why this answer is correct."
-            },
-            {
-              "question": "Reading comprehension question 2 based on the passage?",
-              "options": ["Option A", "Option B", "Option C", "Option D"],
-              "answer": "The exact matching text of the correct option",
-              "explanation": "Brief explanation in Bahasa Indonesia why this answer is correct."
-            }
-          ],
-          "quiz": [
-            {
-              "question": "Reading comprehension question 1 based on the passage?",
-              "options": ["Option A", "Option B", "Option C", "Option D"],
-              "answer": "The exact matching text of the correct option",
-              "explanation": "Brief explanation in Bahasa Indonesia why this answer is correct."
-            },
-            {
-              "question": "Reading comprehension question 2 based on the passage?",
-              "options": ["Option A", "Option B", "Option C", "Option D"],
-              "answer": "The exact matching text of the correct option",
-              "explanation": "Brief explanation in Bahasa Indonesia why this answer is correct."
-            }
-          ]
+          "paragraph1": "First paragraph of the reading article in English (3-4 sentences long)...",
+          "paragraph2": "Second paragraph of the reading article in English (3-4 sentences long)...",
+          "paragraph3": "Third paragraph of the reading article in English (3-4 sentences long)...",
+          "vocabularyMap": {
+            "keyWord1": "arti kata 1 dalam Bahasa Indonesia",
+            "keyWord2": "arti kata 2 dalam Bahasa Indonesia",
+            "keyWord3": "arti kata 3 dalam Bahasa Indonesia",
+            "keyWord4": "arti kata 4 dalam Bahasa Indonesia",
+            "keyWord5": "arti kata 5 dalam Bahasa Indonesia"
+          },
+          "question": "Reading comprehension question in English based on the article above?",
+          "options": ["Option A text", "Option B text", "Option C text", "Option D text"],
+          "answer": "The exact matching text of the correct option",
+          "explanation": "Brief explanation in Bahasa Indonesia why this answer is correct."
         }`;
 
         const response = await fetch(GEMINI_API_URL, {
@@ -82,6 +66,7 @@ export default async function handler(req, res) {
         const data = await response.json();
         let rawText = data.candidates[0].content.parts[0].text;
 
+        // Pembersihan format markdown code blocks
         rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
 
         const readingData = JSON.parse(rawText);
