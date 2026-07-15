@@ -1,3 +1,11 @@
+// Tambahkan import di bagian paling atas
+import { renderReading } from './pages/reading.js';
+
+// ... kode sebelumnya di app.js ...
+// Di dalam fungsi router(page), ganti case 'reading':
+        case 'reading':
+            renderReading(appContent);
+            break;
 // Mengimpor komponen halaman (akan kita buat di tahap berikutnya)
 import { renderHome } from './pages/home.js';
 
