@@ -27,7 +27,7 @@ export default async function handler(req, res) {
         }
         Output MUST be a valid JSON array without any markdown wrappers.`;
     } else if (action === 'get-quizzes') {
-        prompt = `Based on this vocabulary material: ${JSON.stringify(currentMaterial)}, generate exactly 5 multiple choice quiz questions.
+        prompt = `Based on this vocabulary material: ${JSON.stringify(currentMaterial || {})}, generate exactly 5 multiple choice quiz questions.
         The output MUST be in strict JSON format:
         {
           "quizzes": [
@@ -41,7 +41,8 @@ export default async function handler(req, res) {
         }
         Output MUST be valid JSON without markdown wrappers.`;
     } else {
-        return res.status(400).json({ error: "Action tidak dikenali." });
+        // Fallback default jika action kosong/tidak terkirim dari frontend
+        prompt = `Generate a JSON array containing 5 diverse daily vocabulary themes for English learners. Output valid JSON array without markdown wrappers.`;
     }
 
     try {
@@ -65,6 +66,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json(JSON.parse(rawText));
     } catch (err) {
+        console.error("Error di Vocab API:", err);
         return res.status(500).json({ error: err.message });
     }
 }
