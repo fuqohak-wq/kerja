@@ -4,7 +4,7 @@ export function renderSpeaking(container) {
     container.innerHTML = `
         <div class="welcome-section">
             <h2>🎤 AI Speaking Call</h2>
-            <p>Pilih karakter partner bicaramu dan mulai pengalaman telepon.</p>
+            <p>Pilih karakter partner bicaramu dan mulai pengalaman telepon suara.</p>
         </div>
         <div class="reading-container" style="text-align:center;">
             <div id="setup-speaking">
@@ -16,10 +16,10 @@ export function renderSpeaking(container) {
             </div>
 
             <div id="call-active" style="display:none; padding:40px 20px;">
-                <div class="calling-animation">🎙️</div>
-                <h3 id="call-status" style="margin:20px 0; color:var(--primary-color);">Menghubungkan ke AI...</h3>
-                <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:30px;">Bicaralah dalam bahasa Inggris setelah status berubah menjadi "Mendengarkan..."</p>
-                <button id="btn-end-call" class="action-btn" style="background:#ea4335;">🛑 Akhiri & Lihat Rapor</button>
+                <div style="font-size:3rem; animation: pulse 1.5s infinite;">📱</div>
+                <h3 id="call-status" style="margin:20px 0; color:var(--primary-color);">Menghubungkan...</h3>
+                <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:30px;">Bicaralah penuh dalam Bahasa Inggris saat status menunjukkan "Mendengarkan..."</p>
+                <button id="btn-end-call" class="action-btn" style="background:#ea4335;">🛑 Akhiri & Kirim Rapor Laporan</button>
             </div>
 
             <div id="speaking-report" style="display:none; text-align:left;"></div>
@@ -36,14 +36,45 @@ export function renderSpeaking(container) {
     let chatHistory = [];
     let recognition = null;
     let currentRole = 'Teman';
+    let isListening = false;
 
-    // Inisialisasi Speech Recognition Browser
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechObj = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechObj();
         recognition.continuous = false;
         recognition.lang = 'en-US';
         recognition.interimResults = false;
+
+        recognition.onstart = () => {
+            isListening = true;
+            statusTxt.innerText = "🎙️ Mendengarkan... (Silakan Bicara)";
+        };
+
+        recognition.onend = () => {
+            isListening = false;
+            if (statusTxt.innerText.includes("Mendengarkan")) {
+                statusTxt.innerText = "⏳ Memproses ucapanmu...";
+            }
+        };
+
+        recognition.onresult = (event) => {
+            const speechToText = event.results[0][0].transcript;
+            if (speechToText.trim()) {
+                getAIResponse(speechToText);
+            }
+        };
+
+        recognition.onerror = (e) => {
+            console.error("Speech Error:", e);
+            statusTxt.innerText = "🎙️ Giliranmu bicara...";
+            startListeningSafely();
+        };
+    }
+
+    function startListeningSafely() {
+        if (recognition && !isListening) {
+            try { recognition.start(); } catch(err) { console.log(err); }
+        }
     }
 
     startBtn.onclick = async () => {
@@ -51,14 +82,14 @@ export function renderSpeaking(container) {
         setupDiv.style.display = 'none';
         activeDiv.style.display = 'block';
         
-        // Sapaan pertama dari AI
-        statusTxt.innerText = "AI sedang mengetik sapaan...";
-        await getAIResponse("Hello, let's start talking.");
+        await getAIResponse("Hello, let's start the conversation.");
     };
 
     async function getAIResponse(userText) {
         try {
-            statusTxt.innerText = "AI sedang berpikir...";
+            window.speechSynthesis.cancel();
+            statusTxt.innerText = "⚡ AI sedang membalas...";
+            
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -67,47 +98,30 @@ export function renderSpeaking(container) {
             const data = await res.json();
             
             chatHistory.push({ role: 'user', text: userText });
-            chatHistory.push({ role: 'model', text: data.reply });
+            chatHistory.push({ role: 'model', text: data.reply || data.error });
 
-            // AI Berbicara menggunakan suara
-            statusTxt.innerText = "📱 AI sedang berbicara...";
-            const utterance = new SpeechSynthesisUtterance(data.reply);
+            statusTxt.innerText = "🔊 AI sedang berbicara...";
+            const utterance = new SpeechSynthesisUtterance(data.reply || "I cannot hear you clearly.");
             utterance.lang = 'en-US';
             
             utterance.onend = () => {
-                // Setelah AI selesai ngomong, mikrofon otomatis menyala mendengar user
-                if(recognition) {
-                    statusTxt.innerText = "🎙️ Mendengarkan (Silakan Bicara)...";
-                    recognition.start();
-                }
+                startListeningSafely();
             };
             window.speechSynthesis.speak(utterance);
 
         } catch(e) {
-            statusTxt.innerText = "Koneksi terputus. Mengulangi...";
-            setTimeout(() => recognition.start(), 2000);
+            statusTxt.innerText = "Gagal memuat respons suara AI.";
+            setTimeout(startListeningSafely, 2000);
         }
     }
 
-    if (recognition) {
-        recognition.onresult = (event) => {
-            const speechToText = event.results[0][0].transcript;
-            getAIResponse(speechToText);
-        };
-
-        recognition.onerror = () => {
-            // Jika hening atau error, nyalakan kembali mikrofon secara berkala layaknya telepon live
-            statusTxt.innerText = "🎙️ Mendengarkan...";
-            try { recognition.start(); } catch(e){}
-        };
-    }
-
     endBtn.onclick = async () => {
-        if(recognition) try { recognition.stop(); } catch(e){}
+        statusTxt.innerText = "Membuat evaluasi grammar & pronunciation akhir...";
+        if (recognition) {
+            try { recognition.onend = null; recognition.stop(); } catch(e){}
+        }
         window.speechSynthesis.cancel();
 
-        statusTxt.innerText = "Menyusun rapor evaluasi AI...";
-        
         try {
             const res = await fetch('/api/chat', {
                 method: 'POST',
@@ -120,38 +134,25 @@ export function renderSpeaking(container) {
             reportDiv.style.display = 'block';
 
             reportDiv.innerHTML = `
-                <h3 style="margin-bottom:15px; text-align:center; color:var(--primary-color);">📊 Rapor Hasil Panggilan Telepon</h3>
-                <div class="score-badge" style="display:block; text-align:center; margin-bottom:20px;">Skor Akhir: ${report.overall} / 100</div>
+                <h3 style="margin-bottom:15px; color:var(--primary-color);">📊 Rapor Evaluasi Akhir</h3>
+                <div class="score-badge" style="margin-bottom:15px; display:inline-block;">Skor Akhir: ${report.overall || 0}</div>
                 
-                <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-size:0.9rem;">
-                    <tr style="border-bottom:1px solid #ddd;"><td style="padding:6px 0;">Grammar:</td><td style="text-align:right; font-weight:bold;">${report.grammar}</td></tr>
-                    <tr style="border-bottom:1px solid #ddd;"><td style="padding:6px 0;">Vocabulary:</td><td style="text-align:right; font-weight:bold;">${report.vocabulary}</td></tr>
-                    <tr style="border-bottom:1px solid #ddd;"><td style="padding:6px 0;">Fluency:</td><td style="text-align:right; font-weight:bold;">${report.fluency}</td></tr>
-                    <tr style="border-bottom:1px solid #ddd;"><td style="padding:6px 0;">Pronunciation:</td><td style="text-align:right; font-weight:bold;">${report.pronunciation}</td></tr>
-                </table>
-
-                <h4 style="color:#ea4335; margin-bottom:8px;">❌ Kesalahan Grammar yang Ditemukan:</h4>
-                ${report.mistakes.map(m => `
-                    <div class="eval-section" style="border-left: 3px solid #ea4335;">
-                        <p style="color:red;"><strong>Kamu:</strong> "${m.user}"</p>
-                        <p style="color:green;"><strong>Benar:</strong> "${m.correct}"</p>
-                        <p style="font-size:0.85rem; color:var(--text-muted);">${m.explanation}</p>
+                <p><strong>Fluency:</strong> ${report.fluency || 0} | <strong>Grammar:</strong> ${report.grammar || 0}</p>
+                <p><strong>Pronunciation:</strong> ${report.pronunciation || 0} | <strong>Vocabulary:</strong> ${report.vocabulary || 0}</p>
+                
+                <h4 style="color:#ea4335; margin-top:20px;">❌ Analisis Kesalahan:</h4>
+                ${(report.mistakes || []).map(m => `
+                    <div class="eval-section" style="border-left:3px solid red;">
+                        <p style="color:red;">Kamu: "${m.user}"</p>
+                        <p style="color:green;">Benar: "${m.correct}"</p>
+                        <p><small>Info: ${m.explanation}</small></p>
                     </div>
                 `).join('')}
-
-                <h4 style="color:var(--primary-color); margin-top:20px; margin-bottom:8px;">📚 Kosakata Baru untuk Dipelajari:</h4>
-                ${report.newVocab.map(v => `
-                    <p><strong>${v.word}</strong> (${v.meaning}) : <em>${v.example}</em></p>
-                `).join('')}
-
-                <div class="explanation-box" style="margin-top:20px;">
-                    <h4>💡 Saran Latihan Berikutnya:</h4>
-                    <p>${report.nextSuggestion}</p>
-                </div>
-                <button onclick="window.location.reload()" class="action-btn" style="margin-top:20px;">Selesai & Kembali</button>
+                
+                <button onclick="window.location.reload()" class="action-btn" style="margin-top:20px;">Selesai</button>
             `;
-        } catch(e) {
-            alert("Gagal memuat analisis rapor percakapan.");
+        } catch(err) {
+            alert("Error menyusun rapor.");
             window.location.reload();
         }
     };
