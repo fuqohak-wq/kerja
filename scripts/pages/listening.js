@@ -17,32 +17,36 @@ export function renderListening(container) {
         </div>
     `;
 
-    let selectedLevel = 'A1';
-    // Dummy teks bank listening internal berdasarkan level
+    // Database dummy lokal listening untuk pengujian cepat
     const texts = {
-        'A1': { text: "Hello. My name is John. I live in a small house in London. I have a dog named Max.", q: "Where does John live?", options: ["Paris", "London", "New York", "Tokyo"], ans: "London", exp: "John menyebutkan secara langsung: 'I live in a small house in London'." }
+        'A1': { text: "Hello. My name is John. I live in a small house in London. I have a dog named Max.", q: "Where does John live?", options: ["Paris", "London", "New York", "Tokyo"], ans: "London", exp: "John menyebutkan secara langsung: 'I live in a small house in London'." },
+        'A2': { text: "Yesterday, Sarah went to the supermarket to buy some fresh fruits and milk for breakfast.", q: "What did Sarah buy at the supermarket?", options: ["Books", "Clothes", "Fruits and milk", "A new phone"], ans: "Fruits and milk", exp: "Teks menjelaskan: 'buy some fresh fruits and milk'." }
     };
 
-    container.querySelectorAll('.lvl-btn').forEach(btn => {
+    const lvlButtons = container.querySelectorAll('.lvl-btn');
+    const listeningZone = container.querySelector('#listening-zone');
+    const quizZone = container.querySelector('#quiz-zone');
+
+    lvlButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
-            selectedLevel = e.target.getAttribute('data-lvl');
-            container.getElementById('listening-zone').style.display = 'block';
+            const selectedLevel = e.target.getAttribute('data-lvl');
+            listeningZone.style.display = 'block';
             startListeningQuiz(selectedLevel);
         });
     });
 
     function startListeningQuiz(lvl) {
-        const data = texts[lvl] || texts['A1']; // fallback ke A1 jika level tinggi belum diisi data teksnya
+        const data = texts[lvl] || texts['A1'];
         const playBtn = container.querySelector('#btn-play-audio');
         
         playBtn.onclick = () => {
+            window.speechSynthesis.cancel(); // Matikan suara sebelumnya jika ada
             const utterance = new SpeechSynthesisUtterance(data.text);
             utterance.lang = 'en-US';
-            utterance.rate = lvl === 'A1' ? 0.8 : 1.0; // Lambat untuk pemula
+            utterance.rate = (lvl === 'A1') ? 0.75 : 0.9;
             window.speechSynthesis.speak(utterance);
         };
 
-        const quizZone = container.querySelector('#quiz-zone');
         quizZone.innerHTML = `
             <p class="question-title"><strong>Pertanyaan:</strong> ${data.q}</p>
             <div class="options-list">
@@ -56,12 +60,16 @@ export function renderListening(container) {
                 const selected = e.target.getAttribute('data-val');
                 const expl = quizZone.querySelector('#listen-explanation');
                 
-                if(selected === data.ans) {
+                quizZone.querySelectorAll('.listen-opt').forEach(b => b.disabled = true); // Kunci jawaban
+                
+                if (selected === data.ans) {
                     e.target.style.background = '#e6f4ea';
+                    e.target.style.borderColor = 'var(--secondary-color)';
                     expl.innerHTML = `<div class="explanation-box" style="border-top-color:var(--secondary-color);"><h4>✅ Benar!</h4><p>${data.exp}</p></div>`;
                 } else {
                     e.target.style.background = '#fce8e6';
-                    expl.innerHTML = `<div class="explanation-box" style="border-top-color:red;"><h4>❌ Salah</h4><p>Jawaban yang benar adalah <strong>${data.ans}</strong>. ${data.exp}</p></div>`;
+                    e.target.style.borderColor = '#ea4335';
+                    expl.innerHTML = `<div class="explanation-box" style="border-top-color:#ea4335;"><h4>❌ Salah</h4><p>Jawaban yang benar adalah <strong>${data.ans}</strong>. ${data.exp}</p></div>`;
                 }
             });
         });
