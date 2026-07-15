@@ -26,16 +26,15 @@ export default async function handler(req, res) {
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
     const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeKey}`;
 
-    // Tangkap tema yang dikirim dari frontend (misal: "📖 Kajian Agama", "🕌 Islamic Studies", dll)
     const { theme } = req.body;
 
     try {
-        const prompt = `You are an expert English listening test creator. Generate an English listening practice exercise specifically tailored to this theme/topic: "${theme || 'General Knowledge'}". 
-        The passage/transcript must discuss this theme using English vocabulary suitable for intermediate learners (B1 level).
-        The output MUST be in strict JSON format without any markdown wrappers, formatted exactly like this:
+        const prompt = `You are an expert English listening test creator. Generate a brand new, unique English listening practice exercise tailored to this theme: "${theme || 'General Knowledge'}". 
+        Make sure the content is completely different from previous questions.
+        Return strictly in valid JSON format without any markdown wrappers, using this exact structure:
         {
-          "audioText": "A short and natural English listening passage or conversation (around 3 to 4 sentences long) strictly related to the requested theme.",
-          "question": "A clear reading comprehension question in English based on the passage above?",
+          "audioText": "A short and natural English listening passage or conversation (3-4 sentences long) related to the theme.",
+          "question": "A clear reading comprehension question in English based on the passage?",
           "options": ["Option A text", "Option B text", "Option C text", "Option D text"],
           "answer": "The exact matching text of the correct option",
           "explanation": "Brief explanation in Bahasa Indonesia why this answer is correct."
@@ -58,9 +57,12 @@ export default async function handler(req, res) {
         const data = await response.json();
         let rawText = data.candidates[0].content.parts[0].text;
 
+        // Pembersihan agresif dari markdown code blocks
         rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
 
+        // Parse JSON dengan aman di backend terlebih dahulu untuk memastikan tidak ada eror sintaks
         const listeningData = JSON.parse(rawText);
+        
         return res.status(200).json(listeningData);
 
     } catch (err) {
