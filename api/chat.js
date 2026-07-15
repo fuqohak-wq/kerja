@@ -8,7 +8,7 @@ export default async function handler(req, res) {
 
     try {
         const { message, history, roleplay, level, isFinalReport } = req.body;
-        const apiKey = 'AQ.Ab8RN6L5nK1023ED0NRD_m_d8_q-k7QnSkWcMr8Sh6kBgX8BXQ';
+        const apiKey = process.env.GEMINI_API_KEY;
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
         let systemPrompt = "";
