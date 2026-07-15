@@ -29,9 +29,9 @@ export default async function handler(req, res) {
     const { theme } = req.body;
 
     try {
-        const prompt = `You are an expert English reading comprehension and vocabulary test creator. Generate an English reading exercise tailored to this theme: "${theme || 'General Knowledge'}". 
-        The content must be informative, written in clear English (intermediate B1 level).
-        The output MUST be in strict JSON format without any markdown wrappers, using this exact structure to match frontend expectations:
+        const prompt = `You are an expert English reading comprehension and vocabulary test creator. Generate a brand new, unique English reading exercise tailored to this theme: "${theme || 'General Knowledge'}". 
+        Make sure the content, paragraphs, and questions are completely different from previous ones.
+        The output MUST be in strict JSON format without any markdown wrappers, using this exact structure:
         {
           "paragraph1": "First paragraph of the reading article in English (3-4 sentences long)...",
           "paragraph2": "Second paragraph of the reading article in English (3-4 sentences long)...",
@@ -66,10 +66,12 @@ export default async function handler(req, res) {
         const data = await response.json();
         let rawText = data.candidates[0].content.parts[0].text;
 
-        // Pembersihan format markdown code blocks
+        // Pembersihan agresif dari markdown code blocks
         rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
 
+        // Validasi aman di backend sebelum dikirim ke frontend
         const readingData = JSON.parse(rawText);
+        
         return res.status(200).json(readingData);
 
     } catch (err) {
