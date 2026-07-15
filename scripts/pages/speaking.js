@@ -85,6 +85,8 @@ export function renderSpeaking(container) {
         await getAIResponse("Hello, let's start the conversation.");
     };
 
+// ... [Kode bagian atas speaking.js tetap sama] ...
+
     async function getAIResponse(userText) {
         try {
             window.speechSynthesis.cancel();
@@ -93,27 +95,45 @@ export function renderSpeaking(container) {
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ message: userText, history: chatHistory, roleplay: currentRole, level: 'B1' })
+                body: JSON.stringify({ 
+                    message: userText, 
+                    history: chatHistory, 
+                    roleplay: currentRole, 
+                    level: 'B1',
+                    isFinalReport: false 
+                })
             });
+
+            if (!res.ok) throw new Error("Server error");
             const data = await res.json();
             
+            // Ambil teks balasan dengan validasi berlapis
+            const aiReply = data.reply || "I'm sorry, I didn't catch that. Can you say it again?";
+
+            // Simpan ke riwayat percakapan untuk konteks berikutnya
             chatHistory.push({ role: 'user', text: userText });
-            chatHistory.push({ role: 'model', text: data.reply || data.error });
+            chatHistory.push({ role: 'model', text: aiReply });
 
             statusTxt.innerText = "🔊 AI sedang berbicara...";
-            const utterance = new SpeechSynthesisUtterance(data.reply || "I cannot hear you clearly.");
+            
+            const utterance = new SpeechSynthesisUtterance(aiReply);
             utterance.lang = 'en-US';
             
             utterance.onend = () => {
                 startListeningSafely();
             };
+            
             window.speechSynthesis.speak(utterance);
 
         } catch(e) {
+            console.error(e);
             statusTxt.innerText = "Gagal memuat respons suara AI.";
-            setTimeout(startListeningSafely, 2000);
+            // Jalankan ulang mic secara otomatis agar telepon tidak mati total
+            setTimeout(startListeningSafely, 1500);
         }
     }
+
+// ... [Kode bagian bawah/tombol akhiri panggilan tetap sama] ...
 
     endBtn.onclick = async () => {
         statusTxt.innerText = "Membuat evaluasi grammar & pronunciation akhir...";
