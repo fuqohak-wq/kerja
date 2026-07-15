@@ -64,6 +64,16 @@ export function renderHome(container) {
 // KELOLA KLIK DAILY VOCAB
 container.querySelector('#card-vocab').onclick = async (e) => {
     e.stopPropagation();
+
+    // AMBIL ELEMEN MODAL LANGSUNG DARI DOM AGAR TIDAK UNDEFINED
+    const dailyModal = document.getElementById('daily-modal') || document.querySelector('.modal'); 
+    const modalBody = dailyModal ? dailyModal.querySelector('.modal-body') : null;
+
+    if (!dailyModal || !modalBody) {
+        console.error("Elemen modal atau modal-body tidak ditemukan di HTML!");
+        return;
+    }
+
     modalBody.innerHTML = `<div style="text-align:center; padding:20px;">⏳ AI sedang meracik tema & 10 kata baru...</div>`;
     dailyModal.style.display = 'flex';
 
@@ -83,7 +93,7 @@ container.querySelector('#card-vocab').onclick = async (e) => {
         html += `</ol><hr style="border:0; border-top:1px solid #ddd; margin:15px 0;"><div id="quiz-loading-area" style="text-align:center; color:gray; font-size:0.9rem;">⏳ AI sedang membuat 5 soal latihan untuk tema ini...</div>`;
         modalBody.innerHTML = html;
 
-        // 2. Ambil 5 Kuis Secara Terpisah (User sudah bisa baca materi di atas sambil menunggu kuis dimuat)
+        // 2. Ambil 5 Kuis Secara Terpisah
         const quizRes = await fetch('/api/daily', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -91,12 +101,14 @@ container.querySelector('#card-vocab').onclick = async (e) => {
         });
         const quizData = await quizRes.json();
         
-        // Singkirkan teks loading, pasang kuis aslinya
         const loadingArea = modalBody.querySelector('#quiz-loading-area');
-        loadingArea.outerHTML = renderMiniQuiz(quizData.quizzes);
-        bindQuizEvents(quizData.quizzes, 'vocab');
+        if (loadingArea) {
+            loadingArea.outerHTML = renderMiniQuiz(quizData.quizzes);
+            bindQuizEvents(quizData.quizzes, 'vocab');
+        }
 
     } catch (err) {
+        console.error(err);
         modalBody.innerHTML = `<p style="color:red; text-align:center;">⚠️ AI sedang padat. Tutup modal dan klik ulang untuk mencoba topik baru.</p>`;
     }
 };
@@ -104,6 +116,16 @@ container.querySelector('#card-vocab').onclick = async (e) => {
 // KELOLA KLIK GRAMMAR BOOSTER
 container.querySelector('#card-grammar').onclick = async (e) => {
     e.stopPropagation();
+
+    // AMBIL ELEMEN MODAL LANGSUNG DARI DOM AGAR TIDAK UNDEFINED
+    const dailyModal = document.getElementById('daily-modal') || document.querySelector('.modal');
+    const modalBody = dailyModal ? dailyModal.querySelector('.modal-body') : null;
+
+    if (!dailyModal || !modalBody) {
+        console.error("Elemen modal atau modal-body tidak ditemukan di HTML!");
+        return;
+    }
+
     modalBody.innerHTML = `<div style="text-align:center; padding:20px;">⏳ AI sedang merumuskan topik grammar baru...</div>`;
     dailyModal.style.display = 'flex';
 
@@ -114,7 +136,7 @@ container.querySelector('#card-grammar').onclick = async (e) => {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ action: 'get-material', type: 'grammar' })
         });
-        const material = await matRes.json();
+        const material = await matRes.status === 200 ? await matRes.json() : null;
         
         let html = `
             <h3 style="margin-top:0; color:#137333;">⚙️ ${material.topic}</h3>
@@ -136,10 +158,13 @@ container.querySelector('#card-grammar').onclick = async (e) => {
         const quizData = await quizRes.json();
         
         const loadingArea = modalBody.querySelector('#quiz-loading-area');
-        loadingArea.outerHTML = renderMiniQuiz(quizData.quizzes);
-        bindQuizEvents(quizData.quizzes, 'grammar');
+        if (loadingArea) {
+            loadingArea.outerHTML = renderMiniQuiz(quizData.quizzes);
+            bindQuizEvents(quizData.quizzes, 'grammar');
+        }
 
     } catch (err) {
+        console.error(err);
         modalBody.innerHTML = `<p style="color:red; text-align:center;">⚠️ AI sedang padat. Tutup modal dan klik ulang untuk mencoba topik baru.</p>`;
     }
 };
