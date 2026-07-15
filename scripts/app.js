@@ -90,3 +90,4 @@ document.addEventListener('DOMContentLoaded', () => {
     router('home');
     initNavListeners();
 });
+import { renderWriting } from './pages/writing.js';
