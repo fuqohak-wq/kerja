@@ -3,7 +3,7 @@
  * @param {HTMLElement} container 
  */
 export function renderHome(container) {
-    const homeHTML = `
+    container.innerHTML = `
         <div class="welcome-section">
             <h2>Halo, Pelajar! 👋</h2>
             <p>Pilih skill yang ingin kamu latih hari ini bersama AI Tutor kamu.</p>
@@ -36,5 +36,4 @@ export function renderHome(container) {
             </div>
         </div>
     `;
-    container.innerHTML = homeHTML;
 }
