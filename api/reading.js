@@ -6,23 +6,17 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Metode tidak diizinkan.' });
 
-    const keys = [
-        process.env.GEMINI_KEY_1,
-        process.env.GEMINI_KEY_2,
-        process.env.GEMINI_KEY_3
-    ].filter(Boolean);
-
-    if (keys.length === 0) {
-        return res.status(500).json({ error: "API Keys tidak ditemukan." });
-    }
+    const keys = [process.env.GEMINI_KEY_1, process.env.GEMINI_KEY_2, process.env.GEMINI_KEY_3].filter(Boolean);
+    if (keys.length === 0) return res.status(500).json({ error: "API Keys tidak ditemukan." });
 
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
     const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeKey}`;
 
-    const { theme } = req.body;
+    const bodyData = req.body || {};
+    const theme = bodyData.theme || 'General Knowledge';
 
     try {
-        const prompt = `You are an expert English reading comprehension and vocabulary test creator. Generate an English reading exercise tailored to this theme: "${theme || 'General Knowledge'}". 
+        const prompt = `You are an expert English reading comprehension test creator. Generate an English reading exercise tailored to this theme: "${theme}". 
         The output MUST be in strict JSON format without any markdown wrappers, using this exact structure:
         {
           "paragraph1": "First paragraph of the reading article in English...",
@@ -57,9 +51,8 @@ export default async function handler(req, res) {
         rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
 
         return res.status(200).json(JSON.parse(rawText));
-
     } catch (err) {
-        console.error("Error di API Reading:", err);
+        console.error("Error di Reading API:", err);
         return res.status(500).json({ error: `Gagal memproses sesi reading: ${err.message}` });
     }
 }
