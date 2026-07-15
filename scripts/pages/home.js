@@ -1,140 +1,139 @@
 export function renderHome(container, changePageCallback) {
     container.innerHTML = `
-        <div class="welcome-section" style="margin-bottom: 15px; text-align:center;">
-            <h2 style="margin:0; font-size:1.8rem;">Inggris<span style="color:var(--primary-color);">ku</span></h2>
-            <p style="margin:5px 0 0 0; font-size:0.9rem; color:var(--text-muted);">Pusat Pelatihan Mandiri AI. Semua modul muat satu layar!</p>
+        <div class="welcome-section">
+            <h2>Inggris<span style="color:var(--primary-color);">ku</span></h2>
+            <p>Pusat Pelatihan Mandiri AI. Pilih modul interaktif di bawah ini untuk memulai belajar!</p>
         </div>
 
-        <!-- Grid Mini Card: Muat Satu Layar -->
-        <div class="menu-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; max-width: 800px; margin: 0 auto; padding: 5px; box-sizing: border-box;">
-            
-            <div class="menu-card" data-page="speaking" style="background:#fff; border:1px solid #dadce0; padding:15px; border-radius:12px; cursor:pointer; text-align:center; transition: transform 0.2s;">
-                <div style="font-size:2rem; margin-bottom:5px;">🎤</div>
-                <h4 style="margin:0; font-size:1rem;">Speaking</h4>
-                <p style="color:var(--text-muted); font-size:0.75rem; margin:3px 0 0 0;">Obrolan suara AI</p>
+        <div class="menu-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; max-width: 900px; margin: 0 auto; padding: 10px;">
+            <div class="menu-card" data-page="speaking" style="background:#fff; border:1px solid #dadce0; padding:25px; border-radius:16px; cursor:pointer; transition:all 0.2s; text-align:center;">
+                <div style="font-size:3rem; margin-bottom:10px;">🎤</div>
+                <h3 style="margin:5px 0;">Speaking Tutor</h3>
+                <p style="color:var(--text-muted); font-size:0.9rem; margin:0;">Obrolan telepon suara interaktif bersama AI Coach.</p>
             </div>
 
-            <div class="menu-card" data-page="listening" style="background:#fff; border:1px solid #dadce0; padding:15px; border-radius:12px; cursor:pointer; text-align:center; transition: transform 0.2s;">
-                <div style="font-size:2rem; margin-bottom:5px;">🎧</div>
-                <h4 style="margin:0; font-size:1rem;">Listening</h4>
-                <p style="color:var(--text-muted); font-size:0.75rem; margin:3px 0 0 0;">Kuis audio 10 ronde</p>
+            <div class="menu-card" data-page="listening" style="background:#fff; border:1px solid #dadce0; padding:25px; border-radius:16px; cursor:pointer; transition:all 0.2s; text-align:center;">
+                <div style="font-size:3rem; margin-bottom:10px;">🎧</div>
+                <h3 style="margin:5px 0;">Listening Practice</h3>
+                <p style="color:var(--text-muted); font-size:0.9rem; margin:0;">Kuis pemahaman audio 10 ronde berbasis tema unik AI.</p>
             </div>
 
-            <div class="menu-card" data-page="reading" style="background:#fff; border:1px solid #dadce0; padding:15px; border-radius:12px; cursor:pointer; text-align:center; transition: transform 0.2s;">
-                <div style="font-size:2rem; margin-bottom:5px;">📖</div>
-                <h4 style="margin:0; font-size:1rem;">Reading</h4>
-                <p style="color:var(--text-muted); font-size:0.75rem; margin:3px 0 0 0;">Ketuk & terjemahkan</p>
+            <div class="menu-card" data-page="reading" style="background:#fff; border:1px solid #dadce0; padding:25px; border-radius:16px; cursor:pointer; transition:all 0.2s; text-align:center;">
+                <div style="font-size:3rem; margin-bottom:10px;">📖</div>
+                <h3 style="margin:5px 0;">Reading Academy</h3>
+                <p style="color:var(--text-muted); font-size:0.9rem; margin:0;">Bacaan 3 paragraf dengan fitur ketuk-terjemah kata instan.</p>
             </div>
 
-            <div class="menu-card" data-page="writing" style="background:#fff; border:1px solid #dadce0; padding:15px; border-radius:12px; cursor:pointer; text-align:center; transition: transform 0.2s;">
-                <div style="font-size:2rem; margin-bottom:5px;">✍️</div>
-                <h4 style="margin:0; font-size:1rem;">Writing</h4>
-                <p style="color:var(--text-muted); font-size:0.75rem; margin:3px 0 0 0;">Koreksi esai AI</p>
+            <div class="menu-card" data-page="writing" style="background:#fff; border:1px solid #dadce0; padding:25px; border-radius:16px; cursor:pointer; transition:all 0.2s; text-align:center;">
+                <div style="font-size:3rem; margin-bottom:10px;">✍️</div>
+                <h3 style="margin:5px 0;">Writing Corrector</h3>
+                <p style="color:var(--text-muted); font-size:0.9rem; margin:0;">Analisis grammar esai mendalam beserta versi native speaker.</p>
             </div>
 
-            <!-- Kartu Kosakata (Vocab) Kecil Sejajar -->
-            <div class="menu-card dynamic-card" id="card-vocab" style="background: linear-gradient(135deg, #e8f0fe 0%, #ffffff 100%); border:1px solid #b4cffc; padding:15px; border-radius:12px; cursor:pointer; text-align:center; transition: transform 0.2s;">
-                <div style="font-size:2rem; margin-bottom:5px;">📚</div>
-                <h4 style="margin:0; color:#185abc; font-size:1rem;">Daily Vocab</h4>
-                <p style="color:#5f6368; font-size:0.75rem; margin:3px 0 0 0;">10 Kata Baru & Kuis</p>
+            <div class="menu-card dynamic-card" id="card-vocab" style="background: linear-gradient(135deg, #e8f0fe 0%, #ffffff 100%); border:1px solid #b4cffc; padding:25px; border-radius:16px; cursor:pointer; text-align:left; position:relative;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:2.5rem;">📚</span>
+                    <span style="background:#1a73e8; color:#fff; font-size:0.75rem; padding:4px 8px; border-radius:12px; font-weight:bold;">10 Harian</span>
+                </div>
+                <h3 style="margin:10px 0 5px 0; color:#185abc;">Daily Vocabulary</h3>
+                <p style="color:#5f6368; font-size:0.9rem; margin:0;">Kuasai 10 kosakata level Oxford baru & uji pemahaman kuis kilat sekarang.</p>
             </div>
 
-            <!-- Kartu Grammar Kecil Sejajar -->
-            <div class="menu-card dynamic-card" id="card-grammar" style="background: linear-gradient(135deg, #e6f4ea 0%, #ffffff 100%); border:1px solid #a8dab5; padding:15px; border-radius:12px; cursor:pointer; text-align:center; transition: transform 0.2s;">
-                <div style="font-size:2rem; margin-bottom:5px;">⚙️</div>
-                <h4 style="margin:0; color:#137333; font-size:1rem;">Grammar</h4>
-                <p style="color:#5f6368; font-size:0.75rem; margin:3px 0 0 0;">Pola Kalimat Esensial</p>
+            <div class="menu-card dynamic-card" id="card-grammar" style="background: linear-gradient(135deg, #e6f4ea 0%, #ffffff 100%); border:1px solid #a8dab5; padding:25px; border-radius:16px; cursor:pointer; text-align:left; position:relative;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:2.5rem;">⚙️</span>
+                    <span style="background:#137333; color:#fff; font-size:0.75rem; padding:4px 8px; border-radius:12px; font-weight:bold;">Boost AI</span>
+                </div>
+                <h3 style="margin:10px 0 5px 0; color:#137333;">Grammar Booster</h3>
+                <p style="color:#5f6368; font-size:0.9rem; margin:0;">Pelajari pola kalimat advance acak harian agar tulisanmu semakin matang.</p>
             </div>
         </div>
 
-        <!-- Modal Popup -->
-        <div id="daily-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; justify-content:center; align-items:center; padding:15px; box-sizing:border-box;">
-            <div id="modal-content" style="background:#fff; width:100%; max-width:500px; max-height:80vh; overflow-y:auto; padding:20px; border-radius:16px; position:relative;">
-                <button id="close-modal-btn" style="position:absolute; top:10px; right:15px; background:none; border:none; font-size:1.8rem; cursor:pointer; color:#5f6368;">&times;</button>
-                <div id="modal-body-data" style="padding-top:10px;"></div>
+        <div id="daily-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; justify-content:center; align-items:center; padding:15px; box-sizing:border-box;">
+            <div id="modal-content" style="background:#fff; width:100%; max-width:600px; max-height:85vh; overflow-y:auto; padding:25px; border-radius:16px; box-shadow:0 4px 20px rgba(0,0,0,0.15); position:relative;">
+                <button id="close-modal-btn" style="position:absolute; top:15px; right:15px; background:none; border:none; font-size:1.5rem; cursor:pointer; color:#5f6368;">&times;</button>
+                <div id="modal-body-data"></div>
             </div>
         </div>
     `;
 
-    // Hubungkan navigasi kartu standar
+    // Handler Navigasi 4 Menu Utama
     const cards = container.querySelectorAll('.menu-card:not(.dynamic-card)');
     cards.forEach(card => {
-        card.addEventListener('click', () => changePageCallback(card.getAttribute('data-page')));
-        card.addEventListener('mouseover', () => card.style.transform = 'translateY(-2px)');
+        card.addEventListener('click', () => {
+            const page = card.getAttribute('data-page');
+            changePageCallback(page);
+        });
+        // Efek Hover Ringan
+        card.addEventListener('mouseover', () => card.style.transform = 'translateY(-4px)');
         card.addEventListener('mouseout', () => card.style.transform = 'translateY(0)');
     });
 
-    // Hubungkan efek hover kartu dinamis
-    const dynamicCards = container.querySelectorAll('.dynamic-card');
-    dynamicCards.forEach(c => {
-        c.addEventListener('mouseover', () => c.style.transform = 'translateY(-2px)');
-        c.addEventListener('mouseout', () => c.style.transform = 'translateY(0)');
-    });
-
+    // Handler Modal Fitur Baru Daily Vocab & Grammar
     const dailyModal = container.querySelector('#daily-modal');
     const modalBody = container.querySelector('#modal-body-data');
-    container.querySelector('#close-modal-btn').onclick = () => dailyModal.style.display = 'none';
+    const closeModalBtn = container.querySelector('#close-modal-btn');
 
-    // Aksi Klik Daily Vocab
+    closeModalBtn.onclick = () => dailyModal.style.display = 'none';
+    dailyModal.onclick = (e) => { if(e.target === dailyModal) dailyModal.style.display = 'none'; };
+
+    // Klik Kumpulan Kosakata Harian
     container.querySelector('#card-vocab').onclick = async () => {
-        modalBody.innerHTML = `<div style="text-align:center; padding:20px;">⏳ Meracik 10 kata baru bebas eror...</div>`;
+        modalBody.innerHTML = `<div style="text-align:center; padding:20px;">⏳ Meracik 10 kosakata baru khusus untukmu...</div>`;
         dailyModal.style.display = 'flex';
 
         try {
             const res = await fetch('/api/daily', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({type: 'vocab'}) });
-            let text = await res.text();
-            text = text.replace(/\\n/g, ' ').replace(/\\r/g, ' '); // Bersihkan escape enter
-            const data = JSON.parse(text);
+            const data = await res.json();
             
-            let html = `<h3 style="margin-top:0;">📚 10 Kosakata Hari Ini</h3><ol style="padding-left:20px; text-align:left; font-size:0.95rem; line-height:1.5;">`;
+            let vocabHtml = `<h3>📚 10 Daily Vocabulary</h3><ol style="padding-left:20px; text-align:left; line-height:1.6; margin-bottom:20px;">`;
             data.words.forEach(w => {
-                html += `<li style="margin-bottom:8px;"><strong>${w.word}</strong>: ${w.meaning}<br><small style="color:gray;">Ex: <em>${w.example}</em></small></li>`;
+                vocabHtml += `<li style="margin-bottom:10px;"><strong>${w.word}</strong> (${w.meaning})<br><span style="color:var(--text-muted); font-size:0.9rem;">Ex: <em>${w.example}</em></span></li>`;
             });
-            html += `</ol><hr style="border:0; border-top:1px solid #ddd; margin:15px 0;">` + renderMiniQuiz(data.quiz);
+            vocabHtml += `</ol><hr style="border:0; border-top:1px solid #dadce0; margin:20px 0;">`;
             
-            modalBody.innerHTML = html;
+            // Tambahkan Mini-Kuis Pembuktian
+            vocabHtml += renderMiniQuiz(data.quiz);
+            modalBody.innerHTML = vocabHtml;
             bindQuizEvents(data.quiz);
         } catch (e) {
-            modalBody.innerHTML = `<p style="color:red; text-align:center;">⚠️ Gagal memuat materi. Hubungan AI sibuk. Silakan coba klik kembali!</p>`;
+            modalBody.innerHTML = `<p style="color:red; text-align:center;">Gagal memuat materi. Coba klik ulang.</p>`;
         }
     };
 
-    // Aksi Klik Grammar Booster
+    // Klik Modul Grammar Booster
     container.querySelector('#card-grammar').onclick = async () => {
-        modalBody.innerHTML = `<div style="text-align:center; padding:20px;">⏳ Menghubungi AI untuk rumus kalimat baru...</div>`;
+        modalBody.innerHTML = `<div style="text-align:center; padding:20px;">⏳ Menganalisis topik struktur kalimat advance harian...</div>`;
         dailyModal.style.display = 'flex';
 
         try {
             const res = await fetch('/api/daily', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({type: 'grammar'}) });
-            let text = await res.text();
-            text = text.replace(/\\n/g, ' ').replace(/\\r/g, ' ');
-            const data = JSON.parse(text);
+            const data = await res.json();
             
-            let html = `
-                <h3 style="margin-top:0; color:#137333;">⚙️ Grammar Booster</h3>
-                <div style="background:#f4faf6; padding:12px; border-radius:8px; font-size:0.95rem; text-align:left; border-left:4px solid #34a853; margin-bottom:12px;">
-                    <strong>${data.topic}</strong><br>${data.explanation}
-                </div>
-                <p style="text-align:left; font-size:0.9rem;"><strong>Pola/Contoh:</strong> <code style="background:#eee; padding:2px 6px; border-radius:4px; display:block; margin-top:3px;">${data.formula}</code></p>
-                <hr style="border:0; border-top:1px solid #ddd; margin:15px 0;">
-            ` + renderMiniQuiz(data.quiz);
+            let grammarHtml = `
+                <h3 style="color:#137333;">⚙️ Grammar Booster: ${data.topic}</h3>
+                <p style="text-align:left; line-height:1.6; font-size:1rem; background:#f4faf6; padding:15px; border-radius:8px; border-left:4px solid #34a853;">${data.explanation}</p>
+                <p style="text-align:left;"><strong>Contoh Pola:</strong><br><code style="background:#f1f3f4; padding:3px 6px; border-radius:4px; font-size:1rem; display:block; margin-top:5px;">${data.formula}</code></p>
+                <hr style="border:0; border-top:1px solid #dadce0; margin:20px 0;">
+            `;
             
-            modalBody.innerHTML = html;
+            grammarHtml += renderMiniQuiz(data.quiz);
+            modalBody.innerHTML = grammarHtml;
             bindQuizEvents(data.quiz);
         } catch (e) {
-            modalBody.innerHTML = `<p style="color:red; text-align:center;">⚠️ Gagal memuat materi. Hubungan AI sibuk. Silakan coba klik kembali!</p>`;
+            modalBody.innerHTML = `<p style="color:red; text-align:center;">Gagal memuat materi grammar. Coba klik ulang.</p>`;
         }
     };
 
     function renderMiniQuiz(quiz) {
         return `
-            <div style="text-align:left; font-size:0.95rem;">
-                <h4 style="margin:0 0 8px 0; color:var(--primary-color);">🎯 Uji Pemahaman:</h4>
-                <p style="margin:0 0 10px 0; font-weight:bold;">${quiz.question}</p>
-                <div style="display:flex; flex-direction:column; gap:6px;">
-                    ${quiz.options.map(o => `<button class="option-btn daily-opt-btn" data-val="${o}" style="text-align:left; padding:8px 12px; width:100%; font-size:0.9rem;">${o}</button>`).join('')}
+            <div class="mini-quiz-box" style="text-align:left;">
+                <h4 style="margin:0 0 10px 0; color:var(--primary-color);">🎯 Uji Pemahaman Kilat:</h4>
+                <p style="margin-bottom:12px; font-weight:500;">${quiz.question}</p>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    ${quiz.options.map(o => `<button class="option-btn daily-opt-btn" data-val="${o}" style="text-align:left; padding:10px; font-size:0.95rem; width:100%;">${o}</button>`).join('')}
                 </div>
-                <div id="daily-quiz-expl" style="margin-top:12px;"></div>
+                <div id="daily-quiz-expl" style="margin-top:15px;"></div>
             </div>
         `;
     }
@@ -151,11 +150,11 @@ export function renderHome(container, changePageCallback) {
                 if (selected === quiz.answer) {
                     e.target.style.background = '#e6f4ea';
                     e.target.style.borderColor = '#34a853';
-                    explDiv.innerHTML = `<div style="padding:10px; background:#f4faf6; border-left:4px solid #34a853; font-size:0.85rem; border-radius:4px;"><strong>🎉 Benar!</strong><br>${quiz.explanation}</div>`;
+                    explDiv.innerHTML = `<div style="padding:10px; background:#f4faf6; border-left:4px solid #34a853; border-radius:4px; font-size:0.9rem;"><strong>🎉 Tepat Sekali!</strong><br>${quiz.explanation}</div>`;
                 } else {
                     e.target.style.background = '#fce8e6';
                     e.target.style.borderColor = '#ea4335';
-                    explDiv.innerHTML = `<div style="padding:10px; background:#fdf5f5; border-left:4px solid #ea4335; font-size:0.85rem; border-radius:4px;"><strong>❌ Kurang Tepat.</strong> Jawaban: <strong>${quiz.answer}</strong><br>${quiz.explanation}</div>`;
+                    explDiv.innerHTML = `<div style="padding:10px; background:#fdf5f5; border-left:4px solid #ea4335; border-radius:4px; font-size:0.9rem;"><strong>📌 Kurang Tepat.</strong> Jawaban betul: <strong>${quiz.answer}</strong><br>${quiz.explanation}</div>`;
                 }
             };
         });
