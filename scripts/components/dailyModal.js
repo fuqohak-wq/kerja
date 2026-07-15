@@ -12,10 +12,11 @@ async function getOrFetchBulkMaterial(type) {
         return list[Math.floor(Math.random() * list.length)];
     }
 
-    const res = await fetch('/api/daily', {
+    // Endpoint diarahkan secara spesifik ke /api/vocab atau /api/grammar
+    const res = await fetch(`/api/${type}`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ action: 'get-material-bulk', type: type })
+        body: JSON.stringify({ action: 'get-material-bulk' })
     });
     const freshBulkData = await res.json();
     
@@ -60,7 +61,8 @@ export async function openDailyModal(type, container) {
             modalBody.innerHTML = html;
         }
 
-        const quizRes = await fetch('/api/daily', {
+        // Endpoint fetch kuis diarahkan ke /api/vocab atau /api/grammar
+        const quizRes = await fetch(`/api/${type}`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ action: 'get-quizzes', currentMaterial: material })
