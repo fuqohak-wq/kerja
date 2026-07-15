@@ -3,13 +3,8 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Metode tidak diizinkan.' });
-    }
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Metode tidak diizinkan.' });
 
     const keys = [
         process.env.GEMINI_KEY_1,
@@ -18,9 +13,7 @@ export default async function handler(req, res) {
     ].filter(Boolean);
 
     if (keys.length === 0) {
-        return res.status(500).json({ 
-            error: "API Keys tidak ditemukan di backend /api/chat." 
-        });
+        return res.status(500).json({ error: "API Keys tidak ditemukan." });
     }
 
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
@@ -29,54 +22,50 @@ export default async function handler(req, res) {
     const { message, history } = req.body;
 
     try {
-        // Menyusun riwayat percakapan agar AI merespon sebagai partner speaking interaktif
-        let contents = [];
-        
+        // Menggabungkan percakapan agar aman diproses oleh Gemini
+        let chatContents = [];
+
         if (history && Array.isArray(history)) {
-            history.forEach(h => {
-                contents.push({
-                    role: h.role === 'user' ? 'user' : 'model',
-                    parts: [{ text: h.parts }]
+            history.forEach(item => {
+                chatContents.push({
+                    role: item.role === 'user' ? 'user' : 'model',
+                    parts: [{ text: String(item.parts || item.text || '') }]
                 });
             });
         }
 
-        // Tambahkan pesan terbaru dari pengguna
-        contents.push({
+        // Tambahkan pesan terakhir user
+        chatContents.push({
             role: 'user',
-            parts: [{ text: message || "Hello" }]
+            parts: [{ text: String(message || "Hello") }]
         });
-
-        const systemInstruction = "You are a friendly English speaking practice partner. Keep your response natural, conversational, concise (2-3 sentences), and occasionally ask a follow-up question to keep the conversation going in English.";
 
         const response = await fetch(GEMINI_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: contents,
-                systemInstruction: {
-                    parts: [{ text: systemInstruction }]
+                contents: chatContents,
+                generationConfig: {
+                    temperature: 0.7
                 }
             })
         });
 
         if (!response.ok) {
             const errData = await response.json();
-            throw new Error(errData.error?.message || "Gagal merespon dari Google API");
+            throw new Error(errData.error?.message || "Gagal dari Google API");
         }
 
         const data = await response.json();
-        
         if (!data.candidates || !data.candidates[0].content) {
             throw new Error("Respon kosong dari AI.");
         }
 
         const replyText = data.candidates[0].content.parts[0].text;
-        
         return res.status(200).json({ reply: replyText });
 
     } catch (err) {
-        console.error("Error di API Chat/Speaking:", err);
-        return res.status(500).json({ error: `Gagal memproses chat speaking: ${err.message}` });
+        console.error("Error di API Chat:", err);
+        return res.status(500).json({ error: err.message });
     }
 }
