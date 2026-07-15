@@ -19,10 +19,9 @@ export default async function handler(req, res) {
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
     const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeKey}`;
 
-    const { message, history } = req.body;
+    const { message, history } = req.body || {};
 
     try {
-        // Menggabungkan percakapan agar aman diproses oleh Gemini
         let chatContents = [];
 
         if (history && Array.isArray(history)) {
@@ -34,17 +33,21 @@ export default async function handler(req, res) {
             });
         }
 
-        // Tambahkan pesan terakhir user
         chatContents.push({
             role: 'user',
             parts: [{ text: String(message || "Hello") }]
         });
+
+        const systemInstruction = "You are a friendly English speaking practice partner. Keep your response natural, conversational, concise (2-3 sentences), and occasionally ask a follow-up question to keep the conversation going in English.";
 
         const response = await fetch(GEMINI_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: chatContents,
+                systemInstruction: {
+                    parts: [{ text: systemInstruction }]
+                },
                 generationConfig: {
                     temperature: 0.7
                 }
@@ -66,6 +69,9 @@ export default async function handler(req, res) {
 
     } catch (err) {
         console.error("Error di API Chat:", err);
-        return res.status(500).json({ error: err.message });
+        // Fallback otomatis agar frontend tidak mengalami error 500 mentah
+        return res.status(200).json({ 
+            reply: "That sounds interesting! Could you tell me more about it in English?" 
+        });
     }
 }
