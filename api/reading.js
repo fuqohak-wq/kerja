@@ -3,13 +3,8 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Metode tidak diizinkan.' });
-    }
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Metode tidak diizinkan.' });
 
     const keys = [
         process.env.GEMINI_KEY_1,
@@ -18,9 +13,7 @@ export default async function handler(req, res) {
     ].filter(Boolean);
 
     if (keys.length === 0) {
-        return res.status(500).json({ 
-            error: "API Keys tidak ditemukan di backend /api/reading." 
-        });
+        return res.status(500).json({ error: "API Keys tidak ditemukan." });
     }
 
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
@@ -29,19 +22,15 @@ export default async function handler(req, res) {
     const { theme } = req.body;
 
     try {
-        const prompt = `You are an expert English reading comprehension and vocabulary test creator. Generate a brand new, unique English reading exercise tailored to this theme: "${theme || 'General Knowledge'}". 
-        Make sure the content, paragraphs, and questions are completely different from previous ones.
+        const prompt = `You are an expert English reading comprehension and vocabulary test creator. Generate an English reading exercise tailored to this theme: "${theme || 'General Knowledge'}". 
         The output MUST be in strict JSON format without any markdown wrappers, using this exact structure:
         {
-          "paragraph1": "First paragraph of the reading article in English (3-4 sentences long)...",
-          "paragraph2": "Second paragraph of the reading article in English (3-4 sentences long)...",
-          "paragraph3": "Third paragraph of the reading article in English (3-4 sentences long)...",
+          "paragraph1": "First paragraph of the reading article in English...",
+          "paragraph2": "Second paragraph of the reading article in English...",
+          "paragraph3": "Third paragraph of the reading article in English...",
           "vocabularyMap": {
             "keyWord1": "arti kata 1 dalam Bahasa Indonesia",
-            "keyWord2": "arti kata 2 dalam Bahasa Indonesia",
-            "keyWord3": "arti kata 3 dalam Bahasa Indonesia",
-            "keyWord4": "arti kata 4 dalam Bahasa Indonesia",
-            "keyWord5": "arti kata 5 dalam Bahasa Indonesia"
+            "keyWord2": "arti kata 2 dalam Bahasa Indonesia"
           },
           "question": "Reading comprehension question in English based on the article above?",
           "options": ["Option A text", "Option B text", "Option C text", "Option D text"],
@@ -65,14 +54,9 @@ export default async function handler(req, res) {
 
         const data = await response.json();
         let rawText = data.candidates[0].content.parts[0].text;
-
-        // Pembersihan agresif dari markdown code blocks
         rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
 
-        // Validasi aman di backend sebelum dikirim ke frontend
-        const readingData = JSON.parse(rawText);
-        
-        return res.status(200).json(readingData);
+        return res.status(200).json(JSON.parse(rawText));
 
     } catch (err) {
         console.error("Error di API Reading:", err);
