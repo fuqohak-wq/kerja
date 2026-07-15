@@ -8,7 +8,7 @@ export default async function handler(req, res) {
 
     try {
         const { text, topic, level } = req.body;
-        const apiKey = 'AQ.Ab8RN6L5nK1023ED0NRD_m_d8_q-k7QnSkWcMr8Sh6kBgX8BXQ'; 
+        const apiKey = process.env.GEMINI_API_KEY;
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
         const systemPrompt = `Kamu adalah seorang Guru Bahasa Inggris Privat AI. Periksa tulisan user dengan topik "${topic}" dan level "${level}". Berikan analisis dalam BAHASA INDONESIA. Kamu HARUS merespons dalam format JSON mentah murni tanpa markdown box (tanpa \`\`\`json):
