@@ -1,73 +1,47 @@
-import { google } from 'googleapis';
-
 export default async function handler(req, res) {
-    // 1. Atur Header CORS agar aman dari pemblokiran akses browser
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
+    if (req.method === 'OPTIONS') return res.status(200).end();
 
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Metode tidak diizinkan. Silakan gunakan POST.' });
-    }
+    const GOOGLE_SCRIPT_URL = "URL_WEB_APP_GOOGLE_SCRIPT_ANDA_DISINI"; // Ganti dengan URL deployment Web App Anda
 
-    try {
-        const { finalScore } = req.body;
-
-        if (finalScore === undefined || finalScore === null) {
-            return res.status(400).json({ success: false, error: 'Nilai finalScore tidak ditemukan di body request.' });
-        }
-
-        // 2. Mengambil rahasia dari Environment Variables Vercel
-        const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
-        let privateKey = process.env.GOOGLE_PRIVATE_KEY;
-        const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
-
-        if (!clientEmail || !privateKey || !spreadsheetId) {
-            return res.status(500).json({ 
-                success: false, 
-                error: 'Konfigurasi Google Sheets di Vercel belum lengkap (Email, Key, atau ID kosong).' 
+    if (req.method === 'POST') {
+        try {
+            const { finalScore } = req.body;
+            const response = await fetch(GOOGLE_SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: "submit-score", finalScore })
             });
-        }
 
-        // PERBAIKAN PENTING: Mengatasi masalah karakter newline (\n) yang sering rusak di Vercel
-        if (privateKey.includes('\\n')) {
-            privateKey = privateKey.replace(/\\n/g, '\n');
-        }
-
-        // 3. Autentikasi ke Google API menggunakan Service Account
-        const auth = new google.auth.JWT(
-            clientEmail,
-            null,
-            privateKey,
-            ['https://www.googleapis.com/auth/spreadsheets']
-        );
-
-        const sheets = google.sheets({ version: 'v4', auth });
-
-        // 4. Masukkan skor ke sel B6 di tab DASHBOARD
-        // Gunakan VALUE_INPUT_OPTION: 'USER_ENTERED' agar diolah sebagai angka murni
-        await sheets.spreadsheets.values.update({
-            spreadsheetId,
-            range: 'DASHBOARD!B6',
-            valueInputOption: 'USER_ENTERED',
-            requestBody: {
-                values: [[finalScore]]
+            const textResult = await response.text();
+            
+            // Cek apakah balasan berupa HTML (error Google) atau JSON valid
+            if (textResult.startsWith("<!DOCTYPE") || textResult.startsWith("<html")) {
+                throw new Error("Google Apps Script mengembalikan HTML. Pastikan deployment diset ke 'Anyone'.");
             }
-        });
 
-        // Kirimkan respon balik berupa JSON yang valid
-        return res.status(200).json({ success: true, message: 'Skor berhasil diperbarui di sel B6!' });
-
-    } catch (error) {
-        console.error("Error Backend Detail:", error);
-        // Tetap kirimkan format JSON meskipun server mengalami kendala internal
-        return res.status(500).json({ 
-            success: false, 
-            error: `Gagal memproses data ke Google Sheet. Detail: ${error.message}` 
-        });
+            const jsonResult = JSON.parse(textResult);
+            return res.status(200).json(jsonResult);
+        } catch (err) {
+            return res.status(500).json({ success: false, error: err.message });
+        }
+    } else if (req.method === 'GET') {
+        // Mengambil data untuk halaman progress
+        try {
+            const response = await fetch(GOOGLE_SCRIPT_URL);
+            const textResult = await response.text();
+            if (textResult.startsWith("<!DOCTYPE")) {
+                return res.status(200).json({ scoreB6: 0, streak: 3, history: [] });
+            }
+            const data = JSON.parse(textResult);
+            return res.status(200).json(data);
+        } catch (err) {
+            return res.status(200).json({ scoreB6: 0, streak: 3, history: [] });
+        }
+    } else {
+        return res.status(405).json({ error: 'Metode tidak diizinkan.' });
     }
 }
