@@ -16,123 +16,118 @@ export default async function handler(req, res) {
 
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-        // Membuat daftar tema acak agar AI selalu berganti topik bahasan setiap kali dipanggil
-        const themes = ["Technology & AI", "Business & Finance", "Psychology & Emotion", "Nature & Science", "Daily Casual & Idioms", "Art & Literature", "Travel & Culture"];
-        const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+        // Kumpulan kategori super luas agar AI melompat-lompat topik setiap kali reload
+        const vocabCategories = [
+            "Idioms & Phrasal Verbs in Corporate World", "Advanced Psychology & Behavioral Terms", 
+            "Medical & Scientific Advancements Vocabulary", "Legal & Political Discourse Words", 
+            "Art, Philosophy, & Aesthetics Terminology", "Environmental Science & Climate Debate",
+            "Modern Technology, AI & Digital Subculture Slang", "Literature & Descriptive Masterpieces"
+        ];
+        
+        const grammarCategories = [
+            "Inversion after Negative Adverbs (Hardly, Scrutinized, Not until)", 
+            "Mixed Conditionals (Type 2 + Type 3 combination)", 
+            "Subjunctive Mood for Urgency or Demands (It is imperative that...)", 
+            "Causative Verbs (Have/Get/Make someone do something)", 
+            "Advanced Passive Voice (It is said that / Having been seen)", 
+            "Gerunds vs Infinitives with complete meaning changes (Stop/Remember/Forget)",
+            "Relative Clauses with Prepositions (To whom, In which, Whereby)",
+            "Modals of Lost Opportunity or Deduction in Past (Should have, Must have, Needn't have)"
+        ];
+
+        const randomVocabTheme = vocabCategories[Math.floor(Math.random() * vocabCategories.length)];
+        const randomGrammarTheme = grammarCategories[Math.floor(Math.random() * grammarCategories.length)];
 
         let promptText = "";
         if (type === 'vocab') {
-            promptText = `Act as an advanced English professor. Select 10 highly advanced, diverse, and completely unexpected B2-C1-C2 English vocabulary words focused heavily on the theme: "${randomTheme}". Make sure the words are unique and rarely repeated. For each word, provide the Indonesian meaning and 1 natural example sentence. 
-            Also, include 1 challenging multiple choice quiz testing one of those 10 words. 
+            promptText = `You are a strict B2-C2 English Cambridge Examiner. 
+            1. Select 10 hyper-specific, advanced, and rare English words matching the theme: "${randomVocabTheme}". Provide Indonesian meaning and 1 natural complex example sentence for each.
+            2. Create exactly 5 distinct multiple-choice quiz questions to test these words. Ensure questions have different sentences and contexts.
             Return ONLY a raw JSON code, no markdown block wrappers, strictly matching this structure:
-            {"words": [{"word": "Alleviate", "meaning": "Meringankan", "example": "A warm bath can alleviate stress."}], "quiz": {"question": "Meaning of alleviate?", "options": ["To make less severe", "To make worse", "To ignore", "To build"], "answer": "To make less severe", "explanation": "Alleviate means to make less severe."}}`;
+            {
+              "words": [{"word": "Word", "meaning": "Arti", "example": "Sentence"}],
+              "quizzes": [
+                {"question": "Q1", "options": ["A","B","C","D"], "answer": "Correct Option", "explanation": "Why"},
+                {"question": "Q2", "options": ["A","B","C","D"], "answer": "Correct Option", "explanation": "Why"},
+                {"question": "Q3", "options": ["A","B","C","D"], "answer": "Correct Option", "explanation": "Why"},
+                {"question": "Q4", "options": ["A","B","C","D"], "answer": "Correct Option", "explanation": "Why"},
+                {"question": "Q5", "options": ["A","B","C","D"], "answer": "Correct Option", "explanation": "Why"}
+              ]
+            }`;
         } else {
-            promptText = `Select one essential, unique, and random English grammar rules or sentence patterns (ranging from conditional sentences, inversion, passive voice, modal verbs, gerunds, subjunctive, etc.). Pick a topic randomly, avoiding basic tenses. Provide a brief, engaging explanation in Indonesian and a clear formula or example sentence. 
-            Include 1 tricky multiple-choice quiz related to this grammar rule.
+            promptText = `You are an elite English Syntactician.
+            1. Focus entirely on the advanced grammar topic: "${randomGrammarTheme}". Explain the rule briefly and deeply in Indonesian. Give a crystal-clear "Pola/Contoh".
+            2. Create exactly 5 high-quality, non-repetitive multiple-choice quiz questions explicitly designed to reinforce this specific topic. Vary the question styles (sentence completion, error identification, contextual usage).
             Return ONLY a raw JSON code, no markdown block wrappers, strictly matching this structure:
-            {"topic": "Topic Name", "explanation": "Penjelasan singkat", "formula": "Formula or Example", "quiz": {"question": "Question", "options": ["A","B","C","D"], "answer": "A", "explanation": "Reason"}}`;
+            {
+              "topic": "Topic Name",
+              "explanation": "Penjelasan mendalam Bahasa Indonesia",
+              "formula": "Pola kalimat / Contoh utama",
+              "quizzes": [
+                {"question": "Q1", "options": ["A","B","C","D"], "answer": "Correct Option", "explanation": "Why"},
+                {"question": "Q2", "options": ["A","B","C","D"], "answer": "Correct Option", "explanation": "Why"},
+                {"question": "Q3", "options": ["A","B","C","D"], "answer": "Correct Option", "explanation": "Why"},
+                {"question": "Q4", "options": ["A","B","C","D"], "answer": "Correct Option", "explanation": "Why"},
+                {"question": "Q5", "options": ["A","B","C","D"], "answer": "Correct Option", "explanation": "Why"}
+              ]
+            }`;
         }
 
-        // Kirim request ke Gemini dengan menambahkan parameter generationConfig untuk kreativitas maksimum (Randomness)
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ role: 'user', parts: [{ text: promptText }] }],
                 generationConfig: {
-                    temperature: 1.0,  // Nilai 1.0 memaksa AI untuk sekreatif dan seacak mungkin
+                    temperature: 1.0, // Kreativitas maksimal agar teks tidak repetitif
                     topP: 0.95,
-                    maxOutputTokens: 1500
+                    maxOutputTokens: 2500 // Ditambah agar muat menampung 5 soal kuis sekaligus
                 }
             })
         });
 
-        if (!response.ok) {
-            throw new Error(`Gemini API error dengan status ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`Gemini API Error: ${response.status}`);
 
         const data = await response.json();
-        
         if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
             return res.status(200).json(getFallbackData(type));
         }
 
         let rawText = data.candidates[0].content.parts[0].text;
-        
-        // Bersihkan pembungkus blok markdown ```json jika AI tidak sengaja menyertakannya
         rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
 
         const parsedJson = JSON.parse(rawText);
         return res.status(200).json(parsedJson);
 
     } catch (error) {
-        console.error("API Error:", error);
+        console.error("Backend Error:", error);
         return res.status(200).json(getFallbackData(req.body.type));
     }
 }
 
-// Fungsi Cadangan Lokal dengan variasi acak sederhana jika koneksi internet terputus/kuota habis
+// Data lokal dinamis jika API mengalami gangguan limitasi
 function getFallbackData(type) {
-    const coinFlip = Math.random() > 0.5;
     if (type === 'vocab') {
-        if (coinFlip) {
-            return {
-                words: [
-                    { word: "Alleviate", meaning: "Meringankan", example: "A warm bath can alleviate stress after work." },
-                    { word: "Ambiguous", meaning: "Bisa bermakna ganda", example: "His reply was ambiguous, leaving us confused." },
-                    { word: "Meticulous", meaning: "Sangat teliti / cermat", example: "She is meticulous about keeping her room clean." },
-                    { word: "Pragmatic", meaning: "Praktis / sesuai kenyataan", example: "We need a pragmatic solution to this problem." },
-                    { word: "Resilient", meaning: "Cepat pulih / tangguh", example: "The economy proved resilient despite the crisis." }
-                ],
-                quiz: {
-                    question: "Which word means 'sangat teliti'?",
-                    options: ["Ambiguous", "Meticulous", "Pragmatic", "Alleviate"],
-                    answer: "Meticulous",
-                    explanation: "Meticulous artinya sangat teliti atau cermat terhadap detail."
-                }
-            };
-        } else {
-            return {
-                words: [
-                    { word: "Ephemeral", meaning: "Sifatnya sementara / singkat", example: "Fame in the internet age is often ephemeral." },
-                    { word: "Eloquent", meaning: "Fasih / pandai berbicara", example: "His eloquent speech moved the entire audience." },
-                    { word: "Scrutinize", meaning: "Memeriksa dengan sangat cermat", example: "The manager will scrutinize every detail of the report." },
-                    { word: "Superfluous", meaning: "Berlebihan / tidak diperlukan", example: "Avoid writing superfluous details in your essay." },
-                    { word: "Vindicate", meaning: "Membersihkan nama baik dari tuduhan", example: "New evidence emerged to vindicate the suspect." }
-                ],
-                quiz: {
-                    question: "What is the meaning of 'Ephemeral'?",
-                    options: ["Lasting a very short time", "Extremely beautiful", "Very annoying", "Difficult to understand"],
-                    answer: "Lasting a very short time",
-                    explanation: "Ephemeral berarti berumur pendek, singkat, atau terjadi hanya sementara."
-                }
-            };
-        }
+        return {
+            words: [{ word: "Conspicuous", meaning: "Mencolok / Mudah terlihat", example: "The red tower was conspicuous against the sky." }],
+            quizzes: Array.from({ length: 5 }, (_, i) => ({
+                question: `[Latihan ${i+1}] What is the antonym of Conspicuous?`,
+                options: ["Hidden", "Obvious", "Bright", "Clear"],
+                answer: "Hidden",
+                explanation: "Conspicuous berarti mencolok, kebalikannya adalah tersembunyi (Hidden)."
+            }))
+        };
     } else {
-        if (coinFlip) {
-            return {
-                topic: "Expressing Future Intentions",
-                explanation: "Gunakan 'be going to' untuk rencana masa depan yang sudah pasti dibuat sebelum berbicara, atau jika ada bukti kuat saat ini.",
-                formula: "Subject + am/is/are + going to + Verb 1 (e.g., We've booked the hotel, so we are going to go on vacation.)",
-                quiz: {
-                    question: "We've already booked the hotel, so we _______ go on vacation next week.",
-                    options: ["will", "are going to", "go", "are going"],
-                    answer: "are going to",
-                    explanation: "Karena hotel sudah dipesan (rencana sudah matang sebelum dibicarakan), bentuk yang tepat adalah 'are going to'."
-                }
-            };
-        } else {
-            return {
-                topic: "Inversion for Emphasis",
-                explanation: "Inversi adalah pembalikan posisi subjek dan kata kerja bantu (auxiliary verb) setelah ekspresi negatif untuk memberikan penekanan emosi yang kuat.",
-                formula: "Negative Expression (Seldom/Rarely/Never) + Auxiliary + Subject + Verb (e.g., Seldom have I seen such a beautiful view.)",
-                quiz: {
-                    question: "Never _______ witnessed such a chaotic football match in my entire life.",
-                    options: ["I have", "have I", "I did", "did I have"],
-                    answer: "have I",
-                    explanation: "Setelah kata keterangan negatif 'Never' di awal kalimat, susunan kalimat harus diinversi menjadi kata kerja bantu terlebih dahulu: 'have I'."
-                }
-            };
-        }
+        return {
+            topic: "Inversion",
+            explanation: "Pembalukan kata kerja bantu ke depan subjek setelah ekspresi negatif.",
+            formula: "Seldom / Rarely + Auxiliary + Subject + Verb",
+            quizzes: Array.from({ length: 5 }, (_, i) => ({
+                question: `[Latihan ${i+1}] Seldom _______ such a breathtaking sunset.`,
+                options: ["have I seen", "I have seen", "did I saw", "I saw"],
+                answer: "have I seen",
+                explanation: "Aturan inversi mengharuskan kata bantu 'have' mendahului subjek 'I'."
+            }))
+        };
     }
 }
