@@ -18,7 +18,7 @@ export function renderSpeaking(container) {
             <div id="call-active" style="display:none; padding:40px 20px;">
                 <div style="font-size:3rem; animation: pulse 1.5s infinite;">📱</div>
                 <h3 id="call-status" style="margin:20px 0; color:var(--primary-color);">Menghubungkan...</h3>
-                <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:30px;">Bicaralah penuh dalam Bahasa Inggris saat status menunjukkan "Mendengarkan..."</p>
+                <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:30px;">Bicaralah penuh dalam Bahasa Inggris. Sistem akan mengirim suara otomatis jika Anda diam selama 5 detik.</p>
                 <button id="btn-end-call" class="action-btn" style="background:#ea4335;">🛑 Akhiri & Kirim Rapor Laporan</button>
             </div>
 
@@ -37,11 +37,17 @@ export function renderSpeaking(container) {
     let recognition = null;
     let currentRole = 'Teman';
     let isListening = false;
+    
+    // Variabel pengendali jeda keheningan (silence detection)
+    let silenceTimer = null;
+    const SILENCE_DELAY = 5000; // Jeda 5 detik ideal agar tidak boros kuota request
 
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechObj = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechObj();
-        recognition.continuous = false;
+        
+        // DIUBAH: Dibuat true agar microfon terus menyala menyerap kalimat panjang Anda
+        recognition.continuous = true; 
         recognition.lang = 'en-US';
         recognition.interimResults = false;
 
@@ -52,28 +58,45 @@ export function renderSpeaking(container) {
 
         recognition.onend = () => {
             isListening = false;
-            if (statusTxt.innerText.includes("Mendengarkan")) {
-                statusTxt.innerText = "⏳ Memproses ucapanmu...";
-            }
         };
 
+        // DIUBAH: Implementasi hitung mundur 5 detik keheningan
         recognition.onresult = (event) => {
-            const speechToText = event.results[0][0].transcript;
+            // Hapus timer sebelumnya karena pengguna kedengaran berbicara lagi
+            clearTimeout(silenceTimer);
+
+            const lastResultIndex = event.results.length - 1;
+            const speechToText = event.results[lastResultIndex][0].transcript;
+            
             if (speechToText.trim()) {
-                getAIResponse(speechToText);
+                statusTxt.innerText = "✍️ Sedang merekam obrolanmu...";
+                
+                // Memicu pengiriman ke AI hanya jika Anda sudah diam/sunyi total selama 5 detik penuh
+                silenceTimer = setTimeout(() => {
+                    // Hentikan rekaman sementara sewaktu AI merespon balik
+                    if(recognition) { try { recognition.stop(); } catch(e){} }
+                    getAIResponse(speechToText);
+                }, SILENCE_DELAY);
             }
         };
 
         recognition.onerror = (e) => {
             console.error("Speech Error:", e);
-            statusTxt.innerText = "🎙️ Giliranmu bicara...";
-            startListeningSafely();
+            // Jangan langsung crash, istirahatkan dan nyalakan ulang secara aman
+            if(e.error !== 'no-speech') {
+                statusTxt.innerText = "🎙️ Memulihkan koneksi mic...";
+                setTimeout(startListeningSafely, 1000);
+            }
         };
     }
 
     function startListeningSafely() {
         if (recognition && !isListening) {
-            try { recognition.start(); } catch(err) { console.log(err); }
+            try { 
+                recognition.start(); 
+            } catch(err) { 
+                console.log("Mic restart log:", err); 
+            }
         }
     }
 
@@ -84,10 +107,6 @@ export function renderSpeaking(container) {
         
         await getAIResponse("Hello, let's start the conversation.");
     };
-
-// ... [Kode bagian atas speaking.js tetap sama] ...
-
-// ... [Kode bagian atas tetap sama] ...
 
     async function getAIResponse(userText) {
         try {
@@ -111,17 +130,19 @@ export function renderSpeaking(container) {
             
             const aiReply = data.reply || "Error: Tidak ada respons dari server.";
 
-            // Simpan ke riwayat
-            chatHistory.push({ role: 'user', text: userText });
+            // Simpan ke riwayat lokal jika bukan sapaan pembuka default
+            if (userText !== "Hello, let's start the conversation.") {
+                chatHistory.push({ role: 'user', text: userText });
+            }
             chatHistory.push({ role: 'model', text: aiReply });
 
-            // TAMPILKAN BALASAN DI LAYAR AGAR BISA DIBACA SAAT TESTING
             statusTxt.innerHTML = `<span style="color:var(--text-main); font-size:1rem; display:block; margin-bottom:10px;">"${aiReply}"</span> 🔊 AI sedang berbicara...`;
             
             const utterance = new SpeechSynthesisUtterance(aiReply);
             utterance.lang = 'en-US';
             
             utterance.onend = () => {
+                // Nyalakan mic kembali setelah text-to-speech AI selesai berbunyi
                 startListeningSafely();
             };
             
@@ -134,12 +155,11 @@ export function renderSpeaking(container) {
         }
     }
 
-// ... [Kode bagian bawah tetap sama] ...
-
-// ... [Kode bagian bawah/tombol akhiri panggilan tetap sama] ...
-
     endBtn.onclick = async () => {
         statusTxt.innerText = "Membuat evaluasi grammar & pronunciation akhir...";
+        
+        // Matikan pendeteksi suara total agar tidak ada kebocoran data
+        clearTimeout(silenceTimer);
         if (recognition) {
             try { recognition.onend = null; recognition.stop(); } catch(e){}
         }
@@ -153,22 +173,27 @@ export function renderSpeaking(container) {
             });
             const report = await res.json();
             
+            // DIUBAH: Ambil skor keseluruhan rapor speaking, lalu simpan ke objek global pencatat nilai harian Anda
+            if (window.globalScores && report.overall) {
+                window.globalScores.speaking = Math.round(Number(report.overall));
+            }
+
             activeDiv.style.display = 'none';
             reportDiv.style.display = 'block';
 
             reportDiv.innerHTML = `
                 <h3 style="margin-bottom:15px; color:var(--primary-color);">📊 Rapor Evaluasi Akhir</h3>
-                <div class="score-badge" style="margin-bottom:15px; display:inline-block;">Skor Akhir: ${report.overall || 0}</div>
+                <div class="score-badge" style="margin-bottom:15px; display:inline-block; background:#1a73e8; color:#fff; padding:5px 15px; border-radius:20px; font-weight:bold;">Skor Akhir: ${report.overall || 0}</div>
                 
                 <p><strong>Fluency:</strong> ${report.fluency || 0} | <strong>Grammar:</strong> ${report.grammar || 0}</p>
                 <p><strong>Pronunciation:</strong> ${report.pronunciation || 0} | <strong>Vocabulary:</strong> ${report.vocabulary || 0}</p>
                 
                 <h4 style="color:#ea4335; margin-top:20px;">❌ Analisis Kesalahan:</h4>
                 ${(report.mistakes || []).map(m => `
-                    <div class="eval-section" style="border-left:3px solid red;">
-                        <p style="color:red;">Kamu: "${m.user}"</p>
-                        <p style="color:green;">Benar: "${m.correct}"</p>
-                        <p><small>Info: ${m.explanation}</small></p>
+                    <div class="eval-section" style="border-left:3px solid red; padding-left:10px; margin-bottom:10px; background:#fff5f5;">
+                        <p style="color:red; margin:2px 0;">Kamu: "${m.user}"</p>
+                        <p style="color:green; margin:2px 0;">Benar: "${m.correct}"</p>
+                        <p style="margin:2px 0;"><small>Info: ${m.explanation}</small></p>
                     </div>
                 `).join('')}
                 
