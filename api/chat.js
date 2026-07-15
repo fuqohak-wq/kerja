@@ -34,8 +34,9 @@ export default async function handler(req, res) {
         let requestBody = {};
 
         if (isFinalReport) {
-            // MODE A: MEMBUAT LAPORAN EVALUASI AKHIR SPEAKING
+            // MODE A: MEMBUAT LAPORAN EVALUASI AKHIR SPEAKING (Gunakan petunjuk bahasa Indonesia untuk laporan agar mudah Anda pahami)
             const prompt = `You are an expert English examiner. Based on this chat history: ${JSON.stringify(history)}, generate a comprehensive final speaking evaluation report for a student learning at ${level} level. 
+            The explanation MUST be written in Bahasa Indonesia so the student can understand their mistakes easily.
             Return JSON format strictly:
             {
               "overall": 85,
@@ -44,7 +45,7 @@ export default async function handler(req, res) {
               "pronunciation": 90,
               "vocabulary": 85,
               "mistakes": [
-                {"user": "wrong sentence used by user", "correct": "the correct professional English way", "explanation": "why it is wrong"}
+                {"user": "wrong sentence used by user", "correct": "the correct professional English way", "explanation": "penjelasan detail dalam Bahasa Indonesia mengenai letak kesalahan tata bahasa atau pelafalannya"}
               ]
             }`;
 
@@ -56,13 +57,13 @@ export default async function handler(req, res) {
             // MODE B: PERCAKAPAN ROLEPLAY BIASA (CHAT DENGAN AI)
             const contents = [];
             
-            // Format instruksi sistem agar AI tahu dia sedang berperan sebagai apa
+            // PERBAIKAN UTAMA: Kami perketat instruksi sistem agar AI wajib berbicara Bahasa Inggris penuh!
             contents.push({
                 role: 'user',
-                parts: [{ text: `System Instruction: Act as an engaging roleplay partner. Your role is: ${roleplay}. Keep your responses clear, natural, and suitable for a learner at ${level} level. Max 3 sentences per response. Let's start.` }]
+                parts: [{ text: `System Instruction: You are an English speaking partner. You must speak ONLY in English. Do NOT translate your responses to Indonesian. Do NOT use Indonesian under any circumstances. Your current roleplay character is: "${roleplay}". Keep your responses short, natural, engaging, and highly suitable for an English learner at "${level}" level. Limit your response to a maximum of 2 or 3 short sentences so it feels like a real phone call. Start the conversation now based on your role.` }]
             });
 
-            // PERBAIKAN PENTING: Mengubah riwayat chat dari frontend agar sesuai format baku REST API Gemini
+            // Rekonstruksi riwayat chat sebelumnya
             if (history && history.length > 0) {
                 history.forEach(chat => {
                     contents.push({
@@ -109,7 +110,6 @@ export default async function handler(req, res) {
 
     } catch (err) {
         console.error("Error di API Chat:", err);
-        // Proteksi agar backend tetap mengembalikan JSON valid walau sedang terjadi eror internal
         return res.status(500).json({ error: `Gagal memproses sesi speaking: ${err.message}` });
     }
 }
