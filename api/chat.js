@@ -50,9 +50,11 @@ export default async function handler(req, res) {
             body: JSON.stringify({ contents: formattedContents })
         });
 
+// ... [Kode bagian atas api/chat.js tetap sama] ...
+
         const data = await response.json();
         if (!data.candidates || data.candidates.length === 0) {
-            throw new Error(data.error?.message || 'Respons kosong dari Gemini');
+            throw new Error('Respons kosong dari Gemini');
         }
 
         let responseText = data.candidates[0].content.parts[0].text;
@@ -61,11 +63,13 @@ export default async function handler(req, res) {
             responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
             return res.status(200).json(JSON.parse(responseText));
         } else {
+            // MENGEMBALIKAN TEKS BERSIH LANGSUNG
             return res.status(200).json({ reply: responseText.trim() });
         }
 
     } catch (error) {
         console.error('Error di API Chat:', error);
-        return res.status(500).json({ error: error.message || 'Terjadi kesalahan sistem.' });
+        // Jika error, kembalikan teks ramah sebagai fallback langsung
+        return res.status(200).json({ reply: "I'm sorry, could you please repeat that?" });
     }
 }
