@@ -44,7 +44,8 @@ function router(page) {
         case 'speaking':
         case 'listening':
         case 'writing':
-            appContent.innerHTML = `
+            renderWriting(appContent);
+            break;            appContent.innerHTML = `
                 <div class="welcome-section">
                     <h2>${page.toUpperCase()}</h2>
                     <p>Fitur AI untuk ${page} sedang disiapkan untuk integrasi Gemini API.</p>
