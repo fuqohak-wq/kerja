@@ -1,0 +1,95 @@
+/* Container Utama Reading */
+.reading-container {
+    background-color: var(--surface-color);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+}
+
+.article-box {
+    background-color: var(--background-color);
+    padding: 16px;
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+    border-left: 4px solid var(--primary-color);
+    max-height: 250px;
+    overflow-y: auto;
+    font-size: 0.95rem;
+    color: #3c4043;
+    white-space: pre-line; /* Mempertahankan paragraph spacing */
+}
+
+.question-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.option-btn {
+    background-color: var(--surface-color);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    text-align: left;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.option-btn:hover {
+    border-color: var(--primary-color);
+    background-color: var(--primary-light);
+}
+
+/* State Jawaban */
+.option-btn.correct {
+    background-color: #e6f4ea;
+    border-color: var(--secondary-color);
+    color: #137333;
+    font-weight: 600;
+}
+
+.option-btn.wrong {
+    background-color: #fce8e6;
+    border-color: #ea4335;
+    color: #c5221f;
+}
+
+/* Kotak Pembahasan */
+.explanation-box {
+    background-color: #f1f3f4;
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-top: 20px;
+    border-top: 3px solid var(--primary-color);
+}
+
+.explanation-box h4 {
+    color: var(--primary-color);
+    margin-bottom: 6px;
+}
+
+.action-btn {
+    width: 100%;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 14px;
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+.action-btn:hover {
+    background-color: #1557b0;
+}
