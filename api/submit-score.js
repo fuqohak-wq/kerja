@@ -5,7 +5,8 @@ export default async function handler(req, res) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzfFxfuEbVuN0CEmBzQbaLGywsacI7gPBue45eCKadELkN6mypef1rJ233Xt4FUybXxIQ/exec"; // Ganti dengan URL deployment Web App Anda
+    // SALIN URL DEPLOYMENT WEB APP GOOGLE APPS SCRIPT ANDA DI SINI
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzfFxfuEbVuN0CEmBzQbaLGywsacI7gPBue45eCKadELkN6mypef1rJ233Xt4FUybXxIQ/exec"; 
 
     if (req.method === 'POST') {
         try {
@@ -17,10 +18,8 @@ export default async function handler(req, res) {
             });
 
             const textResult = await response.text();
-            
-            // Cek apakah balasan berupa HTML (error Google) atau JSON valid
             if (textResult.startsWith("<!DOCTYPE") || textResult.startsWith("<html")) {
-                throw new Error("Google Apps Script mengembalikan HTML. Pastikan deployment diset ke 'Anyone'.");
+                throw new Error("Google Apps Script mengembalikan HTML. Pastikan deployment diatur ke 'Anyone'.");
             }
 
             const jsonResult = JSON.parse(textResult);
@@ -29,17 +28,18 @@ export default async function handler(req, res) {
             return res.status(500).json({ success: false, error: err.message });
         }
     } else if (req.method === 'GET') {
-        // Mengambil data untuk halaman progress
         try {
             const response = await fetch(GOOGLE_SCRIPT_URL);
             const textResult = await response.text();
-            if (textResult.startsWith("<!DOCTYPE")) {
+            
+            if (textResult.startsWith("<!DOCTYPE") || textResult.startsWith("<html")) {
                 return res.status(200).json({ scoreB6: 0, streak: 3, history: [] });
             }
+            
             const data = JSON.parse(textResult);
             return res.status(200).json(data);
         } catch (err) {
-            return res.status(200).json({ scoreB6: 0, streak: 3, history: [] });
+            return res.status(200).json({ scoreB6: 0, streak: 3, history: [], error: err.message });
         }
     } else {
         return res.status(405).json({ error: 'Metode tidak diizinkan.' });
