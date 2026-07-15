@@ -1,22 +1,18 @@
-// Mengimpor komponen halaman secara eksplisit dan aman
 import { renderHome } from './pages/home.js';
 import { renderReading } from './pages/reading.js';
+import { renderWriting } from './pages/writing.js';
+import { renderListening } from './pages/listening.js';
+import { renderSpeaking } from './pages/speaking.js';
 
-// State global aplikasi
 const appState = {
     currentPage: 'home',
-    user: {
-        level: 'A1',
-        streak: 3
-    }
+    user: { level: 'B1', streak: 3 }
 };
 
-// Fungsi Router utama
 function router(page) {
     appState.currentPage = page;
     const appContent = document.getElementById('app-content');
-    
-    if (!appContent) return; // Guard clause jika elemen belum dimuat
+    if (!appContent) return;
     appContent.innerHTML = '';
 
     switch (page) {
@@ -24,35 +20,40 @@ function router(page) {
             renderHome(appContent);
             initMenuListeners();
             break;
+        case 'reading':
+            renderReading(appContent);
+            break;
+        case 'writing':
+            renderWriting(appContent);
+            break;
+        case 'listening':
+            renderListening(appContent);
+            break;
+        case 'speaking':
+            renderSpeaking(appContent);
+            break;
         case 'progress':
             appContent.innerHTML = `
                 <div class="welcome-section">
-                    <h2>📊 Progress Dashboard</h2>
-                    <p>Fitur analitik grafik perkembangan akan hadir di tahap berikutnya.</p>
+                    <h2>📊 Dashboard Progress</h2>
+                    <div class="reading-container">
+                        <p>🔥 <strong>Streak Harian:</strong> 3 Hari</p>
+                        <p>🎯 <strong>Target Belajar:</strong> Lancar Percakapan Roleplay</p>
+                        <hr style="margin:15px 0; border:0; border-top:1px solid #ddd;">
+                        <p>⚡ Statistik per Skill akan otomatis diperbarui setelah riwayat terisi.</p>
+                    </div>
                 </div>`;
             break;
         case 'settings':
             appContent.innerHTML = `
                 <div class="welcome-section">
-                    <h2>⚙️ Pengaturan</h2>
-                    <p>Fitur ganti level (A1-C2) akan hadir di tahap berikutnya.</p>
+                    <h2>⚙️ Pengaturan Akun</h2>
+                    <div class="reading-container">
+                        <label>Pilih Level Target Kamu:</label>
+                        <select class="writing-textarea" style="height:50px; margin-top:10px;"><option>A1</option><option>A2</option><option selected>B1</option><option>B2</option><option>C1</option></select>
+                        <button onclick="alert('Pengaturan disimpan!')" class="action-btn">Simpan</button>
+                    </div>
                 </div>`;
-            break;
-        case 'reading':
-            renderReading(appContent);
-            break;
-        case 'speaking':
-        case 'listening':
-        case 'writing':
-            renderWriting(appContent);
-            break;            appContent.innerHTML = `
-                <div class="welcome-section">
-                    <h2>${page.toUpperCase()}</h2>
-                    <p>Fitur AI untuk ${page} sedang disiapkan untuk integrasi Gemini API.</p>
-                    <button id="btn-back" class="action-btn" style="margin-top:20px;">Kembali ke Beranda</button>
-                </div>`;
-            const btnBack = document.getElementById('btn-back');
-            if (btnBack) btnBack.addEventListener('click', () => router('home'));
             break;
         default:
             renderHome(appContent);
@@ -60,35 +61,27 @@ function router(page) {
     }
 }
 
-// Inisialisasi klik menu utama
 function initMenuListeners() {
-    const menuCards = document.querySelectorAll('.menu-card');
-    menuCards.forEach(card => {
+    document.querySelectorAll('.menu-card').forEach(card => {
         card.addEventListener('click', () => {
-            const targetSkill = card.getAttribute('data-skill');
-            if (targetSkill) router(targetSkill);
+            const target = card.getAttribute('data-skill');
+            if (target) router(target);
         });
     });
 }
 
-// Inisialisasi navigasi bawah
 function initNavListeners() {
-    const navItems = document.querySelectorAll('.nav-item');
-    navItems.forEach(item => {
+    document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', (e) => {
-            navItems.forEach(nav => nav.classList.remove('active'));
-            const clickedItem = e.currentTarget;
-            clickedItem.classList.add('active');
-            
-            const targetPage = clickedItem.getAttribute('data-page');
-            if (targetPage) router(targetPage);
+            document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            const target = e.currentTarget.getAttribute('data-page');
+            if (target) router(target);
         });
     });
 }
 
-// Jalankan ketika DOM sudah siap
 document.addEventListener('DOMContentLoaded', () => {
     router('home');
     initNavListeners();
 });
-import { renderWriting } from './pages/writing.js';
