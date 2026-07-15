@@ -59,60 +59,92 @@ export function renderHome(container) {
         </div>
     `;
 
-    // --- SETUP ELEMENT POPUP ---
-    const dailyModal = container.querySelector('#daily-modal');
-    const modalBody = container.querySelector('#modal-body-data');
-    container.querySelector('#close-modal-btn').onclick = () => dailyModal.style.display = 'none';
+// --- DI DALAM RENDERHOME(CONTAINER) ---
 
-    // --- AKSI KLIK: DAILY VOCAB ---
-    container.querySelector('#card-vocab').onclick = async (e) => {
-        e.stopPropagation(); // Mencegah bentrok gelembung klik ke router
-        modalBody.innerHTML = `<div style="text-align:center; padding:20px;">⏳ Meracik 10 kata baru dari AI...</div>`;
-        dailyModal.style.display = 'flex';
+// KELOLA KLIK DAILY VOCAB
+container.querySelector('#card-vocab').onclick = async (e) => {
+    e.stopPropagation();
+    modalBody.innerHTML = `<div style="text-align:center; padding:20px;">⏳ AI sedang meracik tema & 10 kata baru...</div>`;
+    dailyModal.style.display = 'flex';
 
-        try {
-            const res = await fetch('/api/daily', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({type: 'vocab'}) });
-            const data = await res.json();
-            
-            let html = `<h3 style="margin-top:0;">📚 10 Kosakata Hari Ini</h3><ol style="padding-left:20px; text-align:left; font-size:0.95rem; line-height:1.5;">`;
-            data.words.forEach(w => {
-                html += `<li style="margin-bottom:8px;"><strong>${w.word}</strong>: ${w.meaning}<br><small style="color:gray;">Ex: <em>${w.example}</em></small></li>`;
-            });
-            html += `</ol><hr style="border:0; border-top:1px solid #ddd; margin:15px 0;">` + renderMiniQuiz(data.quizzes);
-            
-            modalBody.innerHTML = html;
-            bindQuizEvents(data.quizzes, 'vocab');
-        } catch (e) {
-            modalBody.innerHTML = `<p style="color:red; text-align:center;">⚠️ Hubungan AI sibuk. Silakan tutup dan klik kembali!</p>`;
-        }
-    };
+    try {
+        // 1. Ambil Materi dari AI
+        const matRes = await fetch('/api/daily', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: 'get-material', type: 'vocab' })
+        });
+        const material = await matRes.json();
+        
+        let html = `<h3 style="margin-top:0; color:#1a73e8;">📚 Tema: ${material.theme}</h3><ol style="padding-left:20px; text-align:left; font-size:0.95rem; line-height:1.5;">`;
+        material.words.forEach(w => {
+            html += `<li style="margin-bottom:8px;"><strong>${w.word}</strong>: ${w.meaning}<br><small style="color:gray;">Ex: <em>${w.example}</em></small></li>`;
+        });
+        html += `</ol><hr style="border:0; border-top:1px solid #ddd; margin:15px 0;"><div id="quiz-loading-area" style="text-align:center; color:gray; font-size:0.9rem;">⏳ AI sedang membuat 5 soal latihan untuk tema ini...</div>`;
+        modalBody.innerHTML = html;
 
-    // --- AKSI KLIK: GRAMMAR BOOSTER ---
-    container.querySelector('#card-grammar').onclick = async (e) => {
-        e.stopPropagation();
-        modalBody.innerHTML = `<div style="text-align:center; padding:20px;">⏳ Menghubungi AI untuk rumus kalimat baru...</div>`;
-        dailyModal.style.display = 'flex';
+        // 2. Ambil 5 Kuis Secara Terpisah (User sudah bisa baca materi di atas sambil menunggu kuis dimuat)
+        const quizRes = await fetch('/api/daily', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: 'get-quizzes', currentMaterial: material })
+        });
+        const quizData = await quizRes.json();
+        
+        // Singkirkan teks loading, pasang kuis aslinya
+        const loadingArea = modalBody.querySelector('#quiz-loading-area');
+        loadingArea.outerHTML = renderMiniQuiz(quizData.quizzes);
+        bindQuizEvents(quizData.quizzes, 'vocab');
 
-        try {
-            const res = await fetch('/api/daily', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({type: 'grammar'}) });
-            const data = await res.json();
-            
-            let html = `
-                <h3 style="margin-top:0; color:#137333;">⚙️ Grammar Booster</h3>
-                <div style="background:#f4faf6; padding:12px; border-radius:8px; font-size:0.95rem; text-align:left; border-left:4px solid #34a853; margin-bottom:12px;">
-                    <strong>${data.topic}</strong><br>${data.explanation}
-                </div>
-                <p style="text-align:left; font-size:0.9rem;"><strong>Pola/Contoh:</strong> <code style="background:#eee; padding:2px 6px; border-radius:4px; display:block; margin-top:3px;">${data.formula}</code></p>
-                <hr style="border:0; border-top:1px solid #ddd; margin:15px 0;">
-            ` + renderMiniQuiz(data.quiz);
-            
-            modalBody.innerHTML = html;
-            bindQuizEvents(data.quiz, 'grammar');
-        } catch (e) {
-            modalBody.innerHTML = `<p style="color:red; text-align:center;">⚠️ Hubungan AI sibuk. Silakan tutup dan klik kembali!</p>`;
-        }
-    };
+    } catch (err) {
+        modalBody.innerHTML = `<p style="color:red; text-align:center;">⚠️ AI sedang padat. Tutup modal dan klik ulang untuk mencoba topik baru.</p>`;
+    }
+};
 
+// KELOLA KLIK GRAMMAR BOOSTER
+container.querySelector('#card-grammar').onclick = async (e) => {
+    e.stopPropagation();
+    modalBody.innerHTML = `<div style="text-align:center; padding:20px;">⏳ AI sedang merumuskan topik grammar baru...</div>`;
+    dailyModal.style.display = 'flex';
+
+    try {
+        // 1. Ambil Materi dari AI
+        const matRes = await fetch('/api/daily', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: 'get-material', type: 'grammar' })
+        });
+        const material = await matRes.json();
+        
+        let html = `
+            <h3 style="margin-top:0; color:#137333;">⚙️ ${material.topic}</h3>
+            <div style="background:#f4faf6; padding:12px; border-radius:8px; font-size:0.95rem; text-align:left; border-left:4px solid #34a853; margin-bottom:12px; color:#137333;">
+                ${material.explanation}
+            </div>
+            <p style="text-align:left; font-size:0.9rem;"><strong>Pola/Contoh:</strong> <code style="background:#eee; padding:4px 8px; border-radius:4px; display:block; margin-top:3px;">${material.formula}</code></p>
+            <hr style="border:0; border-top:1px solid #ddd; margin:15px 0;">
+            <div id="quiz-loading-area" style="text-align:center; color:gray; font-size:0.9rem;">⏳ AI sedang membuat 5 soal latihan untuk topik ini...</div>
+        `;
+        modalBody.innerHTML = html;
+
+        // 2. Ambil 5 Kuis Secara Terpisah
+        const quizRes = await fetch('/api/daily', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: 'get-quizzes', currentMaterial: material })
+        });
+        const quizData = await quizRes.json();
+        
+        const loadingArea = modalBody.querySelector('#quiz-loading-area');
+        loadingArea.outerHTML = renderMiniQuiz(quizData.quizzes);
+        bindQuizEvents(quizData.quizzes, 'grammar');
+
+    } catch (err) {
+        modalBody.innerHTML = `<p style="color:red; text-align:center;">⚠️ AI sedang padat. Tutup modal dan klik ulang untuk mencoba topik baru.</p>`;
+    }
+};
+
+// --- TETAP PERTAHANKAN FUNGSI RENDERMINIQUIZ & BINDQUIZEVENTS 5 SOAL SEBELUMNYA DI SINI ---
     function renderMiniQuiz(quiz) {
         return `
             <div style="text-align:left; font-size:0.95rem;">
