@@ -227,7 +227,10 @@ export function renderReading(container) {
             // Tambahkan baris penugasan skor global ini tepat sebelum merender halaman skor akhir di /scripts/pages/reading.js
 const finalScore = Math.round((score / maxRounds) * 100);
 if (!window.globalScores) window.globalScores = {};
-window.globalScores.reading = finalScore; // Menyimpan skor membaca ke memori global aplikasi
+// KODE BARU (Aman 100% & Terkunci di Memori Lokal)
+if (window.updateGlobalScore) {
+    window.updateGlobalScore('reading', Math.round(Number(report.overall)));
+}
             
             resultZone.innerHTML = `
                 <div style="font-size:4rem;">🎓</div>
