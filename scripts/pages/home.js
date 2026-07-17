@@ -7,20 +7,33 @@ const TANGGAL_HARI_INI = new Date().toDateString(); // Format: "Fri Jul 17 2026"
 
 // Ambil memori penyimpanan dari browser
 let memoriLokal = localStorage.getItem("inggrisku_daily_data");
-let skorAwal = { speaking: 0, listening: 0, reading: 0, grammar: 0 };
+let skorAwal = { speaking: 0, listening: 0, reading: 0, grammar: 0, accumulatedTotal: 0 };
 
 if (memoriLokal) {
     const dataTersimpan = JSON.parse(memoriLokal);
     
-    // Jika masih di hari yang sama, gunakan skor yang ada (Akumulasi Aktif)
+    // Migrasi format data jika belum memiliki properti accumulatedTotal
+    if (!dataTersimpan.scores.hasOwnProperty('accumulatedTotal')) {
+        dataTersimpan.scores.accumulatedTotal = 0;
+    }
+
+    // Jika masih di hari yang sama, gunakan skor akumulasi yang ada
     if (dataTersimpan.date === TANGGAL_HARI_INI) {
         skorAwal = dataTersimpan.scores;
     } else {
-        // Jika sudah ganti hari, paksa reset semua skor ke 0 (Auto-Reset Aktif)
+        // HARI BARU: Reset semua skor lokal ke 0
+        skorAwal = { speaking: 0, listening: 0, reading: 0, grammar: 0, accumulatedTotal: 0 };
         localStorage.setItem("inggrisku_daily_data", JSON.stringify({
             date: TANGGAL_HARI_INI,
             scores: skorAwal
         }));
+
+        // OTOMATIS RESET B6 DI GOOGLE SHEET KE 0
+        fetch('/api/submit-score', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ finalScore: 0 })
+        }).catch(err => console.error("Gagal mereset nilai awal hari:", err));
     }
 } else {
     // Inisialisasi pertama kali jika memori browser kosong
@@ -28,15 +41,26 @@ if (memoriLokal) {
         date: TANGGAL_HARI_INI,
         scores: skorAwal
     }));
+
+    // OTOMATIS SET NILAI SHEET KE 0
+    fetch('/api/submit-score', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ finalScore: 0 })
+    }).catch(err => console.error("Gagal inisialisasi awal hari:", err));
 }
 
-// Pasang skor aktif ke window agar bisa dibaca/ditulis oleh speaking.js, listening.js, dll.
+// Pasang skor aktif ke window agar bisa dibaca/ditulis oleh modul lain
 window.globalScores = skorAwal;
 
-// Fungsi Global untuk memperbarui nilai tiap skill dan menguncinya di memori lokal
+// Fungsi Global untuk memperbarui nilai tiap skill dan mengakumulasikan total skor harian
 window.updateGlobalScore = function(skill, score) {
     if (window.globalScores.hasOwnProperty(skill)) {
         window.globalScores[skill] = score;
+        
+        // Akumulasi: Tambahkan nilai ujian baru ke dalam total nilai harian
+        window.globalScores.accumulatedTotal += score;
+        
         localStorage.setItem("inggrisku_daily_data", JSON.stringify({
             date: TANGGAL_HARI_INI,
             scores: window.globalScores
@@ -94,7 +118,6 @@ export function renderHome(container) {
         </div>
     `;
 
-    // Hubungkan event klik kartu Daily Vocab dan Grammar ke komponen terpisah
     container.querySelector('#card-vocab').onclick = (e) => {
         e.stopPropagation();
         openDailyModal('vocab', container);
@@ -105,11 +128,10 @@ export function renderHome(container) {
         openDailyModal('grammar', container);
     };
 
-    // Tombol Kirim Google Sheet B6
+    // Tombol Kirim Google Sheet B6 (Mengirimkan Akumulasi Total Skor)
     container.querySelector('#btn-submit-all-sessions').onclick = async (e) => {
-        const sc = window.globalScores;
-        const avg = Math.round((sc.speaking + sc.listening + sc.reading + sc.grammar) / 4);
-        if (!confirm(`Kirim Rata-Rata Nilai (${avg}) ke Sel B6?`)) return;
+        const total = window.globalScores.accumulatedTotal || 0;
+        if (!confirm(`Kirim Akumulasi Nilai hari ini (${total}) ke Sel B6?`)) return;
         
         e.target.disabled = true; 
         e.target.innerText = "Mengirim...";
@@ -117,7 +139,7 @@ export function renderHome(container) {
             const res = await fetch('/api/submit-score', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ finalScore: avg })
+                body: JSON.stringify({ finalScore: total })
             });
             const r = await res.json();
             if (r.success) alert("🚀 Sukses masuk ke Google Sheet!");
