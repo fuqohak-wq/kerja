@@ -12,14 +12,6 @@ export function renderSpeaking(container) {
                 <select id="select-role" class="writing-textarea" style="height:50px; margin-bottom:20px;">
                     ${roles.map(r => `<option value="${r}">${r}</option>`).join('')}
                 </select>
-
-                <!-- KODE BARU: Opsi Pilihan Gender Suara -->
-                <label style="display:block; margin-bottom:10px; font-weight:600;">Pilih Gender Suara AI:</label>
-                <select id="select-gender" class="writing-textarea" style="height:50px; margin-bottom:20px;">
-                    <option value="female">👩 Perempuan (Female)</option>
-                    <option value="male">👨 Laki-laki (Male)</option>
-                </select>
-
                 <button id="btn-start-call" class="action-btn">📞 Mulai Panggilan</button>
             </div>
 
@@ -44,7 +36,6 @@ export function renderSpeaking(container) {
     let chatHistory = [];
     let recognition = null;
     let currentRole = 'Teman';
-    let chosenGender = 'female'; // KODE BARU: Menyimpan gender yang dipilih
     let isListening = false;
     
     // Variabel pengendali jeda keheningan (silence detection)
@@ -111,14 +102,13 @@ export function renderSpeaking(container) {
 
     startBtn.onclick = async () => {
         currentRole = container.querySelector('#select-role').value;
-        chosenGender = container.querySelector('#select-gender').value; // KODE BARU: Ambil nilai gender dari UI
         setupDiv.style.display = 'none';
         activeDiv.style.display = 'block';
         
         await getAIResponse("Hello, let's start the conversation.");
     };
 
-async function getAIResponse(userText) {
+    async function getAIResponse(userText) {
         try {
             window.speechSynthesis.cancel();
             statusTxt.innerText = "⚡ AI sedang membalas...";
@@ -140,9 +130,10 @@ async function getAIResponse(userText) {
             
             const aiReply = data.reply || "Error: Tidak ada respons dari server.";
 
-            // --- PERBAIKAN DI SINI ---
-            // Kita simpan pesan user DAN model secara berpasangan tanpa pengecualian
-            chatHistory.push({ role: 'user', text: userText });
+            // Simpan ke riwayat lokal jika bukan sapaan pembuka default
+            if (userText !== "Hello, let's start the conversation.") {
+                chatHistory.push({ role: 'user', text: userText });
+            }
             chatHistory.push({ role: 'model', text: aiReply });
 
             statusTxt.innerHTML = `<span style="color:var(--text-main); font-size:1rem; display:block; margin-bottom:10px;">"${aiReply}"</span> 🔊 AI sedang berbicara...`;
@@ -150,27 +141,8 @@ async function getAIResponse(userText) {
             const utterance = new SpeechSynthesisUtterance(aiReply);
             utterance.lang = 'en-US';
             
-            // --- PENGATURAN PILIHAN SUARA DINAMIS ---
-            const voices = window.speechSynthesis.getVoices();
-            const selectedVoice = voices.find(voice => {
-                const isEnglish = voice.lang.startsWith('en');
-                const nameLower = voice.name.toLowerCase();
-
-                if (isEnglish) {
-                    if (chosenGender === 'male') {
-                        return nameLower.includes('male') || nameLower.includes('david') || nameLower.includes('guy') || nameLower.includes('james');
-                    } else {
-                        return nameLower.includes('female') || nameLower.includes('zira') || nameLower.includes('hazel') || nameLower.includes('samantha') || nameLower.includes('google us english');
-                    }
-                }
-                return false;
-            });
-
-            if (selectedVoice) {
-                utterance.voice = selectedVoice;
-            }
-            
             utterance.onend = () => {
+                // Nyalakan mic kembali setelah text-to-speech AI selesai berbunyi
                 startListeningSafely();
             };
             
@@ -201,7 +173,7 @@ async function getAIResponse(userText) {
             });
             const report = await res.json();
             
-            // Ambil skor keseluruhan rapor speaking, lalu simpan ke objek global pencatat nilai harian Anda
+            // DIUBAH: Ambil skor keseluruhan rapor speaking, lalu simpan ke objek global pencatat nilai harian Anda
             if (window.globalScores && report.overall) {
                 window.globalScores.speaking = Math.round(Number(report.overall));
             }
