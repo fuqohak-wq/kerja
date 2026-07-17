@@ -19,37 +19,49 @@ export default async function handler(req, res) {
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
     const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeKey}`;
 
-    // Ditambahkan: Ekstrak parameter 'roleplay' dari frontend
     const { message, history, roleplay } = req.body || {};
 
     try {
         let chatContents = [];
 
-        // 1. Susun riwayat obrolan
+        // 1. Filter riwayat percakapan agar benar-benar bersih dan rapi
         if (history && Array.isArray(history)) {
+            let lastRole = null;
             history.forEach(item => {
-                chatContents.push({
-                    role: item.role === 'user' ? 'user' : 'model',
-                    parts: [{ text: String(item.parts || item.text || '') }]
-                });
+                const currentItemRole = item.role === 'user' ? 'user' : 'model';
+                const textContent = String(item.text || item.parts?.[0]?.text || '').trim();
+
+                if (textContent) {
+                    // Hindari duplikasi peran berurutan (misal: user setelah user, atau model setelah model)
+                    if (currentItemRole !== lastRole) {
+                        chatContents.push({
+                            role: currentItemRole,
+                            parts: [{ text: textContent }]
+                        });
+                        lastRole = currentItemRole;
+                    }
+                }
             });
         }
 
-        // PERBAIKAN UTAMA: Pastikan riwayat tidak diawali oleh 'model' (mencegah Error 400 dari Gemini)
-        if (chatContents.length > 0 && chatContents[0].role === 'model') {
-            chatContents.unshift({
+        // 2. Bersihkan bagian awal riwayat. Harus diawali oleh 'user'
+        while (chatContents.length > 0 && chatContents[0].role === 'model') {
+            chatContents.shift(); // Hapus item pertama jika itu dari model/AI
+        }
+
+        // 3. Masukkan pesan terbaru dari pengguna
+        // Jika pesan terakhir di riwayat adalah 'user', gabung atau ganti saja agar tidak terjadi bentrok peran berurutan
+        const cleanMessage = String(message || "Hello").trim();
+        if (chatContents.length > 0 && chatContents[chatContents.length - 1].role === 'user') {
+            chatContents[chatContents.length - 1].parts = [{ text: cleanMessage }];
+        } else {
+            chatContents.push({
                 role: 'user',
-                parts: [{ text: "Hello, let's start the conversation." }]
+                parts: [{ text: cleanMessage }]
             });
         }
 
-        // 2. Masukkan pesan terbaru dari pengguna di akhir array
-        chatContents.push({
-            role: 'user',
-            parts: [{ text: String(message || "Hello") }]
-        });
-
-        // PERBAIKAN KEDUA: Sesuaikan instruksi karakter AI secara dinamis berdasarkan 'roleplay' yang dipilih
+        // 4. Sesuaikan instruksi karakter AI secara dinamis
         let systemInstruction = "You are a friendly English speaking practice partner. Keep your response natural, conversational, concise (2-3 sentences), and occasionally ask a follow-up question to keep the conversation going in English.";
         
         if (roleplay) {
@@ -85,7 +97,6 @@ export default async function handler(req, res) {
 
     } catch (err) {
         console.error("Error di API Chat:", err);
-        // Fallback jika API benar-benar down/limit habis
         return res.status(200).json({ 
             reply: "I'm sorry, I had a bit of trouble hearing that. Could you please repeat what you said?" 
         });
