@@ -201,8 +201,10 @@ export function renderSpeaking(container) {
             }
             
             if (window.globalScores && report.overall) {
-                window.globalScores.speaking = Math.round(Number(report.overall));
-            }
+// KODE BARU (Aman 100% & Terkunci di Memori Lokal)
+if (window.updateGlobalScore) {
+    window.updateGlobalScore('speaking', Math.round(Number(report.overall)));
+}
 
             activeDiv.style.display = 'none';
             reportDiv.style.display = 'block';
