@@ -118,7 +118,7 @@ export function renderSpeaking(container) {
         await getAIResponse("Hello, let's start the conversation.");
     };
 
-    async function getAIResponse(userText) {
+async function getAIResponse(userText) {
         try {
             window.speechSynthesis.cancel();
             statusTxt.innerText = "⚡ AI sedang membalas...";
@@ -140,10 +140,9 @@ export function renderSpeaking(container) {
             
             const aiReply = data.reply || "Error: Tidak ada respons dari server.";
 
-            // Simpan ke riwayat lokal jika bukan sapaan pembuka default
-            if (userText !== "Hello, let's start the conversation.") {
-                chatHistory.push({ role: 'user', text: userText });
-            }
+            // --- PERBAIKAN DI SINI ---
+            // Kita simpan pesan user DAN model secara berpasangan tanpa pengecualian
+            chatHistory.push({ role: 'user', text: userText });
             chatHistory.push({ role: 'model', text: aiReply });
 
             statusTxt.innerHTML = `<span style="color:var(--text-main); font-size:1rem; display:block; margin-bottom:10px;">"${aiReply}"</span> 🔊 AI sedang berbicara...`;
@@ -151,19 +150,16 @@ export function renderSpeaking(container) {
             const utterance = new SpeechSynthesisUtterance(aiReply);
             utterance.lang = 'en-US';
             
-            // --- PENGATURAN PILIHAN SUARA DINAMIS BERDASARKAN UI ---
+            // --- PENGATURAN PILIHAN SUARA DINAMIS ---
             const voices = window.speechSynthesis.getVoices();
-            
             const selectedVoice = voices.find(voice => {
                 const isEnglish = voice.lang.startsWith('en');
                 const nameLower = voice.name.toLowerCase();
 
                 if (isEnglish) {
                     if (chosenGender === 'male') {
-                        // Mencari suara laki-laki berdasarkan kata kunci umum OS
                         return nameLower.includes('male') || nameLower.includes('david') || nameLower.includes('guy') || nameLower.includes('james');
                     } else {
-                        // Mencari suara perempuan berdasarkan kata kunci umum OS
                         return nameLower.includes('female') || nameLower.includes('zira') || nameLower.includes('hazel') || nameLower.includes('samantha') || nameLower.includes('google us english');
                     }
                 }
@@ -173,10 +169,8 @@ export function renderSpeaking(container) {
             if (selectedVoice) {
                 utterance.voice = selectedVoice;
             }
-            // ------------------------------------------------------
             
             utterance.onend = () => {
-                // Nyalakan mic kembali setelah text-to-speech AI selesai berbunyi
                 startListeningSafely();
             };
             
