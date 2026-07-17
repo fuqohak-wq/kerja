@@ -174,7 +174,7 @@ export function renderSpeaking(container) {
         }
     }
 
-    endBtn.onclick = async () => {
+endBtn.onclick = async () => {
         statusTxt.innerText = "Membuat evaluasi grammar & pronunciation akhir...";
         clearTimeout(silenceTimer);
         if (recognition) {
@@ -201,10 +201,10 @@ export function renderSpeaking(container) {
             }
             
             if (window.globalScores && report.overall) {
-// KODE BARU (Aman 100% & Terkunci di Memori Lokal)
-if (window.updateGlobalScore) {
-    window.updateGlobalScore('speaking', Math.round(Number(report.overall)));
-}
+                if (window.updateGlobalScore) {
+                    window.updateGlobalScore('speaking', Math.round(Number(report.overall)));
+                }
+            } // <-- KURUNG TUTUP DI SINI SEBELUMNYA HILANG
 
             activeDiv.style.display = 'none';
             reportDiv.style.display = 'block';
