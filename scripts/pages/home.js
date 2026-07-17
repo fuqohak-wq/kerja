@@ -1,8 +1,49 @@
 import { openDailyModal } from '../components/dailyModal.js';
 
-if (!window.globalScores) {
-    window.globalScores = { speaking: 100, listening: 0, reading: 0, grammar: 0 };
+// ==========================================
+// SYSTEM: AUTO-RESET & ACCUMULATION ENGINE
+// ==========================================
+const TANGGAL_HARI_INI = new Date().toDateString(); // Format: "Fri Jul 17 2026"
+
+// Ambil memori penyimpanan dari browser
+let memoriLokal = localStorage.getItem("inggrisku_daily_data");
+let skorAwal = { speaking: 0, listening: 0, reading: 0, grammar: 0 };
+
+if (memoriLokal) {
+    const dataTersimpan = JSON.parse(memoriLokal);
+    
+    // Jika masih di hari yang sama, gunakan skor yang ada (Akumulasi Aktif)
+    if (dataTersimpan.date === TANGGAL_HARI_INI) {
+        skorAwal = dataTersimpan.scores;
+    } else {
+        // Jika sudah ganti hari, paksa reset semua skor ke 0 (Auto-Reset Aktif)
+        localStorage.setItem("inggrisku_daily_data", JSON.stringify({
+            date: TANGGAL_HARI_INI,
+            scores: skorAwal
+        }));
+    }
+} else {
+    // Inisialisasi pertama kali jika memori browser kosong
+    localStorage.setItem("inggrisku_daily_data", JSON.stringify({
+        date: TANGGAL_HARI_INI,
+        scores: skorAwal
+    }));
 }
+
+// Pasang skor aktif ke window agar bisa dibaca/ditulis oleh speaking.js, listening.js, dll.
+window.globalScores = skorAwal;
+
+// Fungsi Global untuk memperbarui nilai tiap skill dan menguncinya di memori lokal
+window.updateGlobalScore = function(skill, score) {
+    if (window.globalScores.hasOwnProperty(skill)) {
+        window.globalScores[skill] = score;
+        localStorage.setItem("inggrisku_daily_data", JSON.stringify({
+            date: TANGGAL_HARI_INI,
+            scores: window.globalScores
+        }));
+    }
+};
+// ==========================================
 
 export function renderHome(container) {
     container.innerHTML = `
