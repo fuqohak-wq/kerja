@@ -48,6 +48,29 @@ export function renderSpeaking(container) {
     let silenceTimer = null;
     const SILENCE_DELAY = 5000; 
 
+    // Variabel untuk menahan layar tetap aktif
+    let wakeLock = null;
+
+    async function requestWakeLock() {
+        try {
+            if ('wakeLock' in navigator) {
+                wakeLock = await navigator.wakeLock.request('screen');
+                console.log("Wake Lock aktif: Layar akan tetap menyala.");
+            }
+        } catch (err) {
+            console.warn("Gagal mengaktifkan Wake Lock:", err.message);
+        }
+    }
+
+    function releaseWakeLock() {
+        if (wakeLock !== null) {
+            wakeLock.release().then(() => {
+                wakeLock = null;
+                console.log("Wake Lock dinonaktifkan.");
+            });
+        }
+    }
+
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechObj = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechObj();
@@ -98,12 +121,14 @@ export function renderSpeaking(container) {
     }
 
     startBtn.onclick = async () => {
-        // Reset mutlak riwayat percakapan agar tidak ada sisa sesi sebelumnya yang bikin error
         chatHistory = []; 
         currentRole = container.querySelector('#select-role').value;
         chosenGender = container.querySelector('#select-gender').value;
         setupDiv.style.display = 'none';
         activeDiv.style.display = 'block';
+        
+        // Aktifkan penahan layar agar HP tidak sleep saat telepon berlangsung
+        await requestWakeLock();
         
         await getAIResponse("Hello, let's start the conversation.");
     };
@@ -127,14 +152,12 @@ export function renderSpeaking(container) {
 
             let aiReply = "";
             if (!res.ok) {
-                // Skenario darurat jika internet putus/server mati: buat respon lokal di frontend
                 aiReply = `That's interesting. Tell me more about it as a ${currentRole}!`;
             } else {
                 const data = await res.json();
                 aiReply = data.reply || `I see. Tell me more about it!`;
             }
 
-            // Simpan riwayat secara aman berpasangan
             chatHistory.push({ role: 'user', text: userText });
             chatHistory.push({ role: 'model', text: aiReply });
 
@@ -174,13 +197,16 @@ export function renderSpeaking(container) {
         }
     }
 
-endBtn.onclick = async () => {
+    endBtn.onclick = async () => {
         statusTxt.innerText = "Membuat evaluasi grammar & pronunciation akhir...";
         clearTimeout(silenceTimer);
         if (recognition) {
             try { recognition.onend = null; recognition.stop(); } catch(e){}
         }
         window.speechSynthesis.cancel();
+        
+        // Matikan fungsi penahan layar setelah panggilan diakhiri
+        releaseWakeLock();
 
         try {
             const res = await fetch('/api/chat', {
@@ -191,7 +217,6 @@ endBtn.onclick = async () => {
             
             let report;
             if (!res.ok) {
-                // Buat laporan simulasi jika server backend mati saat tombol selesai ditekan
                 report = {
                     overall: 80, fluency: 80, grammar: 85, pronunciation: 75, vocabulary: 80,
                     mistakes: [{ user: "Contoh kalimatmu", correct: "Contoh kalimat benar", explanation: "Laporan simulasi offline." }]
@@ -204,7 +229,7 @@ endBtn.onclick = async () => {
                 if (window.updateGlobalScore) {
                     window.updateGlobalScore('speaking', Math.round(Number(report.overall)));
                 }
-            } // <-- KURUNG TUTUP DI SINI SEBELUMNYA HILANG
+            }
 
             activeDiv.style.display = 'none';
             reportDiv.style.display = 'block';
