@@ -215,7 +215,7 @@ export function renderReading(container) {
         });
     }
 
-    nextBtn.onclick = () => {
+nextBtn.onclick = () => {
         if (currentRound < maxRounds) {
             currentRound++;
             loadReadingSession();
@@ -224,13 +224,13 @@ export function renderReading(container) {
             progressDiv.style.display = 'none';
             resultZone.style.display = 'block';
             
-            // Tambahkan baris penugasan skor global ini tepat sebelum merender halaman skor akhir di /scripts/pages/reading.js
-const finalScore = Math.round((score / maxRounds) * 100);
-if (!window.globalScores) window.globalScores = {};
-// KODE BARU (Aman 100% & Terkunci di Memori Lokal)
-if (window.updateGlobalScore) {
-    window.updateGlobalScore('reading', Math.round(Number(report.overall)));
-}
+            const finalScore = Math.round((score / maxRounds) * 100);
+            if (!window.globalScores) window.globalScores = {};
+            
+            // KODE BARU (Menggunakan finalScore, bukan report.overall)
+            if (window.updateGlobalScore) {
+                window.updateGlobalScore('reading', finalScore);
+            }
             
             resultZone.innerHTML = `
                 <div style="font-size:4rem;">🎓</div>
