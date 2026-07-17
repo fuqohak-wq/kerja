@@ -12,6 +12,14 @@ export function renderSpeaking(container) {
                 <select id="select-role" class="writing-textarea" style="height:50px; margin-bottom:20px;">
                     ${roles.map(r => `<option value="${r}">${r}</option>`).join('')}
                 </select>
+
+                <!-- KODE BARU: Opsi Pilihan Gender Suara -->
+                <label style="display:block; margin-bottom:10px; font-weight:600;">Pilih Gender Suara AI:</label>
+                <select id="select-gender" class="writing-textarea" style="height:50px; margin-bottom:20px;">
+                    <option value="female">👩 Perempuan (Female)</option>
+                    <option value="male">👨 Laki-laki (Male)</option>
+                </select>
+
                 <button id="btn-start-call" class="action-btn">📞 Mulai Panggilan</button>
             </div>
 
@@ -36,6 +44,7 @@ export function renderSpeaking(container) {
     let chatHistory = [];
     let recognition = null;
     let currentRole = 'Teman';
+    let chosenGender = 'female'; // KODE BARU: Menyimpan gender yang dipilih
     let isListening = false;
     
     // Variabel pengendali jeda keheningan (silence detection)
@@ -102,6 +111,7 @@ export function renderSpeaking(container) {
 
     startBtn.onclick = async () => {
         currentRole = container.querySelector('#select-role').value;
+        chosenGender = container.querySelector('#select-gender').value; // KODE BARU: Ambil nilai gender dari UI
         setupDiv.style.display = 'none';
         activeDiv.style.display = 'block';
         
@@ -141,6 +151,30 @@ export function renderSpeaking(container) {
             const utterance = new SpeechSynthesisUtterance(aiReply);
             utterance.lang = 'en-US';
             
+            // --- PENGATURAN PILIHAN SUARA DINAMIS BERDASARKAN UI ---
+            const voices = window.speechSynthesis.getVoices();
+            
+            const selectedVoice = voices.find(voice => {
+                const isEnglish = voice.lang.startsWith('en');
+                const nameLower = voice.name.toLowerCase();
+
+                if (isEnglish) {
+                    if (chosenGender === 'male') {
+                        // Mencari suara laki-laki berdasarkan kata kunci umum OS
+                        return nameLower.includes('male') || nameLower.includes('david') || nameLower.includes('guy') || nameLower.includes('james');
+                    } else {
+                        // Mencari suara perempuan berdasarkan kata kunci umum OS
+                        return nameLower.includes('female') || nameLower.includes('zira') || nameLower.includes('hazel') || nameLower.includes('samantha') || nameLower.includes('google us english');
+                    }
+                }
+                return false;
+            });
+
+            if (selectedVoice) {
+                utterance.voice = selectedVoice;
+            }
+            // ------------------------------------------------------
+            
             utterance.onend = () => {
                 // Nyalakan mic kembali setelah text-to-speech AI selesai berbunyi
                 startListeningSafely();
@@ -173,7 +207,7 @@ export function renderSpeaking(container) {
             });
             const report = await res.json();
             
-            // DIUBAH: Ambil skor keseluruhan rapor speaking, lalu simpan ke objek global pencatat nilai harian Anda
+            // Ambil skor keseluruhan rapor speaking, lalu simpan ke objek global pencatat nilai harian Anda
             if (window.globalScores && report.overall) {
                 window.globalScores.speaking = Math.round(Number(report.overall));
             }
