@@ -6,70 +6,98 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Metode tidak diizinkan.' });
 
-    const keys = [process.env.GEMINI_KEY_1, process.env.GEMINI_KEY_2, process.env.GEMINI_KEY_3].filter(Boolean);
-    if (keys.length === 0) return res.status(500).json({ error: "API Keys tidak ditemukan." });
+    // 1. Cek Ketersediaan API Keys
+    const keys = [
+        process.env.GEMINI_KEY_1,
+        process.env.GEMINI_KEY_2,
+        process.env.GEMINI_KEY_3,
+        process.env.GEMINI_API_KEY
+    ].filter(Boolean);
+
+    if (keys.length === 0) {
+        console.error("[API Listening Error] API Keys Gemini tidak ditemukan di Environment Variables Vercel.");
+        return res.status(500).json({ error: "API Key Gemini belum dipasang di Vercel Dashboard." });
+    }
 
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
-    const models = ["gemini-1.5-flash", "gemini-2.5-flash"];
-
     const { theme, round } = req.body || {};
     const selectedTheme = theme || "General English Conversation";
     const seed = Date.now() + "_" + Math.floor(Math.random() * 10000);
 
-    // PROMPT SUPER RINGAN: HANYA MINTA 1 SOAL
-    const prompt = `You are an expert English Test Creator and Islamic Lecturer.
-Create EXACTLY 1 unique, natural English listening comprehension test item based on the topic "${selectedTheme}" (Question Number: ${round || 1}, Seed: ${seed}).
+    // Prompt yang sangat eksplisit tanpa mengandalkan fitur bawaan mimeType yang rentan error
+    const prompt = `You are an expert English Language Test Creator and Islamic Lecturer.
+Generate EXACTLY 1 multiple-choice listening test item for students studying the topic "${selectedTheme}" (Question #${round || 1}, Unique Seed: ${seed}).
 
-Provide:
-1. transcript: A short natural English conversation or passage (2-3 lines) related to ${selectedTheme}.
-2. question: A clear comprehension question in English.
-3. options: 4 distinct choices in English.
-4. answer: The exact correct choice text.
-5. explanation: Brief explanation in Bahasa Indonesia.
-
-OUTPUT FORMAT MUST BE A STRICT SINGLE VALID JSON OBJECT (NO MARKDOWN CODEBLOCKS):
+Respond with ONLY a raw JSON object (no markdown formatting, no text before or after).
+The JSON must follow this exact structure:
 {
   "theme": "${selectedTheme}",
-  "transcript": "...",
-  "question": "...",
-  "options": ["...", "...", "...", "..."],
-  "answer": "...",
-  "explanation": "..."
+  "transcript": "Short English conversation or statement (2-3 sentences)",
+  "question": "Comprehension question in English",
+  "options": ["Option A", "Option B", "Option C", "Option D"],
+  "answer": "The exact string of the correct choice from options",
+  "explanation": "Brief explanation in Bahasa Indonesia"
 }`;
+
+    // Model fallback urut dari yang paling kompatibel
+    const models = ["gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro"];
+    let lastErrorMessage = "";
 
     for (const modelName of models) {
         try {
-            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${activeKey}`;
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${activeKey}`;
             
-            const response = await fetch(GEMINI_API_URL, {
+            const apiRes = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { 
-                        responseMimeType: "application/json",
-                        temperature: 0.8 
+                    generationConfig: {
+                        temperature: 0.7,
+                        maxOutputTokens: 800
                     }
                 })
             });
 
-            if (response.ok) {
-                const data = await response.json();
-                let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (rawText) {
-                    rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
-                    const firstOpen = rawText.indexOf('{');
-                    const lastClose = rawText.lastIndexOf('}');
-                    if (firstOpen !== -1 && lastClose !== -1) {
-                        rawText = rawText.substring(firstOpen, lastClose + 1);
-                    }
-                    return res.status(200).json(JSON.parse(rawText));
-                }
+            if (!apiRes.ok) {
+                const errJson = await apiRes.json().catch(() => ({}));
+                lastErrorMessage = errJson.error?.message || `HTTP ${apiRes.status}`;
+                console.warn(`[Gemini Try Fail] Model ${modelName}:`, lastErrorMessage);
+                continue; // Coba model berikutnya jika gagal
             }
+
+            const data = await apiRes.json();
+            let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (!rawText) {
+                lastErrorMessage = "Respons teks dari AI kosong.";
+                continue;
+            }
+
+            // Pembersihan JSON secara manual agar aman
+            rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+            const firstBrace = rawText.indexOf('{');
+            const lastBrace = rawText.lastIndexOf('}');
+            
+            if (firstBrace !== -1 && lastBrace !== -1) {
+                rawText = rawText.substring(firstBrace, lastBrace + 1);
+            }
+
+            const parsedObj = JSON.parse(rawText);
+            
+            // Validasi kelengkapan bidang JSON
+            if (parsedObj && parsedObj.transcript && parsedObj.question && Array.isArray(parsedObj.options)) {
+                return res.status(200).json(parsedObj);
+            }
+
         } catch (err) {
-            console.warn(`Listening API (${modelName}) Warning:`, err.message);
+            lastErrorMessage = err.message;
+            console.error(`[Gemini Exception] ${modelName}:`, err.message);
         }
     }
 
-    return res.status(500).json({ error: "Gagal meracik soal dari AI. Silakan coba klik tombol lagi." });
+    // Jika semua model gagal
+    return res.status(500).json({ 
+        error: `Gagal meracik soal dari AI (${lastErrorMessage}). Mohon pastikan API Key Gemini aktif.` 
+    });
 }
