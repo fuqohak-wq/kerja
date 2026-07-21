@@ -87,41 +87,48 @@ export function renderWriting(container) {
             loadingSpace.style.display = 'none';
             resultSpace.style.display = 'block';
 
-            // 🟢 BINDING PROPERTI JSON YANG AKURAT
-            const grammarText = data.grammarCorrection || data.grammar || 'Grammar Anda sudah bagus.';
-            const vocabText = data.vocabCorrection || data.vocabularyCorrection || 'Penggunaan kata sudah tepat.';
-            const expressionText = data.naturalExpression || 'Kalimat dapat dipahami dengan baik.';
-            const improvedText = data.improvedVersion || data.nativeVersion || textValue;
+// ... (bagian atas kode writing.js tetap sama)
 
-            resultSpace.innerHTML = `
-                <div style="text-align:center; margin-bottom:20px;">
-                    <div class="score-badge" style="display:inline-block; font-size:1.3rem; padding:10px 25px; background:var(--primary-color); color:#fff; border-radius:25px; font-weight:bold;">
-                        Skor AI: ${writingScore} / 100
-                    </div>
-                </div>
+const grammarText = data.grammarCorrection || 'Grammar Anda sudah bagus.';
+const vocabText = data.vocabCorrection || 'Penggunaan kata sudah tepat.';
+const expressionText = data.naturalExpression || 'Kalimat dapat dipahami dengan baik.';
+const improvedText = data.improvedVersion || textValue;
+const translationText = data.indonesianTranslation || 'Terjemahan tidak tersedia.';
 
-                <div class="eval-section" style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px;">
-                    <h4 style="margin-top:0; color:var(--primary-color);">🔍 Koreksi Tata Bahasa (Grammar)</h4>
-                    <p style="margin:5px 0 0 0;">${grammarText}</p>
-                </div>
+resultSpace.innerHTML = `
+    <div style="text-align:center; margin-bottom:20px;">
+        <div class="score-badge" style="display:inline-block; font-size:1.3rem; padding:10px 25px; background:var(--primary-color); color:#fff; border-radius:25px; font-weight:bold;">
+            Skor AI: ${writingScore} / 100
+        </div>
+    </div>
 
-                <div class="eval-section" style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px;">
-                    <h4 style="margin-top:0; color:var(--primary-color);">📚 Koreksi Kosakata (Vocabulary)</h4>
-                    <p style="margin:5px 0 0 0;">${vocabText}</p>
-                </div>
+    <div class="eval-section" style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px;">
+        <h4 style="margin-top:0; color:var(--primary-color);">🔍 Koreksi Tata Bahasa (Grammar)</h4>
+        <p style="margin:5px 0 0 0;">${grammarText}</p>
+    </div>
 
-                <div class="eval-section" style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px;">
-                    <h4 style="margin-top:0; color:var(--primary-color);">💡 Ekspresi Alami (Natural Expression)</h4>
-                    <p style="margin:5px 0 0 0;">${expressionText}</p>
-                </div>
+    <div class="eval-section" style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px;">
+        <h4 style="margin-top:0; color:var(--primary-color);">📚 Koreksi Kosakata (Vocabulary)</h4>
+        <p style="margin:5px 0 0 0;">${vocabText}</p>
+    </div>
 
-                <div class="eval-section" style="margin-bottom:15px; border-left: 4px solid var(--secondary-color, #34a853); background:#f4faf6; padding:15px; border-radius:8px;">
-                    <h4 style="margin-top:0; color:#2d8e47;">✨ Versi Lebih Alami (Native Version)</h4>
-                    <p style="font-style: italic; font-weight: 500; margin:5px 0 0 0;">"${improvedText}"</p>
-                </div>
+    <div class="eval-section" style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px;">
+        <h4 style="margin-top:0; color:var(--primary-color);">💡 Ekspresi Alami (Natural Expression)</h4>
+        <p style="margin:5px 0 0 0;">${expressionText}</p>
+    </div>
 
-                <button id="btn-writing-done" class="action-btn" style="background-color: var(--text-main, #333); margin-top:10px; width:100%;">Selesai & Latihan Lagi</button>
-            `;
+    <div class="eval-section" style="margin-bottom:15px; border-left: 4px solid #34a853; background:#f4faf6; padding:15px; border-radius:8px;">
+        <h4 style="margin-top:0; color:#2d8e47;">✨ Versi Lebih Alami (Native Version)</h4>
+        <p style="font-style: italic; font-weight: 500; margin:5px 0 0 0;">"${improvedText}"</p>
+    </div>
+
+    <div class="eval-section" style="margin-bottom:20px; border-left: 4px solid #1a73e8; background:#e8f0fe; padding:15px; border-radius:8px;">
+        <h4 style="margin-top:0; color:#185abc;">🇮🇩 Arti dalam Bahasa Indonesia</h4>
+        <p style="margin:5px 0 0 0; color:#174ea6; font-weight:500;">"${translationText}"</p>
+    </div>
+
+    <button id="btn-writing-done" class="action-btn" style="background-color: var(--text-main, #333); margin-top:10px; width:100%;">Selesai & Latihan Lagi</button>
+`;
 
             container.querySelector('#btn-writing-done').addEventListener('click', () => {
                 renderWriting(container); // Reset & pilih tema baru tanpa perlu reload seluruh browser
