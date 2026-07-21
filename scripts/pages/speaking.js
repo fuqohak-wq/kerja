@@ -312,9 +312,11 @@ export function renderSpeaking(container) {
                 <button id="btn-done-speaking" class="action-btn" style="width:100%; background:#1a73e8; color:white; border:none; padding:12px; border-radius:8px; font-weight:bold; cursor:pointer;">Selesai & Latihan Lagi</button>
             `;
 
-            reportDiv.querySelector('#btn-done-speaking').onclick = () => {
-                window.location.reload();
-            };
+reportDiv.querySelector('#btn-done-speaking').onclick = () => {
+    // Kembali ke menu awal tanpa menghilangkan skor di storage
+    reportDiv.style.display = 'none';
+    setupDiv.style.display = 'block';
+};
 
         } catch(err) {
             console.error("Report Error:", err);
