@@ -24,7 +24,7 @@ export function renderWriting(container) {
                 "${randomTopic}"
             </div>
 
-            <textarea id="essay-input" class="writing-textarea" placeholder="Tulis jawaban bahasa Inggris kamu di sini (minimal 10 kata)..."></textarea>
+            <textarea id="essay-input" class="writing-textarea" placeholder="Tulis jawaban bahasa Inggris kamu di sini (minimal 5 kata)..."></textarea>
             
             <button id="btn-submit-essay" class="action-btn">Kirim & Periksa dengan AI</button>
 
@@ -56,23 +56,25 @@ export function renderWriting(container) {
         resultSpace.style.display = 'none';
 
         try {
-            const response = await fetch('/api/evaluate', {
+            // 🟢 FIXED ENDPOINT: Diarahkan ke /api/writing dengan parameter yang lengkap
+            const response = await fetch('/api/writing', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     text: textValue,
-                    topic: randomTopic,
-                    level: currentLevel
+                    prompt: randomTopic,
+                    level: currentLevel,
+                    timestamp: Date.now()
                 })
             });
 
             if (!response.ok) throw new Error('Gagal terhubung dengan server AI.');
             const data = await response.json();
 
-            // 🟢 SOLUSI BUG NILAI: Ambil nilai skor dengan beberapa opsi nama properti fallback
-            let writingScore = Number(data.score || data.overallScore || data.overall || data.finalScore);
+            // 🟢 SKOR REAL DARI AI
+            let writingScore = Number(data.score || data.overallScore || data.finalScore);
             if (isNaN(writingScore) || writingScore === undefined) {
-                writingScore = 75; // Nilai default jika AI tidak mengembalikan angka spesifik
+                writingScore = 75;
             }
             writingScore = Math.min(100, Math.max(0, Math.round(writingScore)));
 
@@ -85,7 +87,12 @@ export function renderWriting(container) {
             loadingSpace.style.display = 'none';
             resultSpace.style.display = 'block';
 
-            // Tampilkan hasil dari AI
+            // 🟢 BINDING PROPERTI JSON YANG AKURAT
+            const grammarText = data.grammarCorrection || data.grammar || 'Grammar Anda sudah bagus.';
+            const vocabText = data.vocabCorrection || data.vocabularyCorrection || 'Penggunaan kata sudah tepat.';
+            const expressionText = data.naturalExpression || 'Kalimat dapat dipahami dengan baik.';
+            const improvedText = data.improvedVersion || data.nativeVersion || textValue;
+
             resultSpace.innerHTML = `
                 <div style="text-align:center; margin-bottom:20px;">
                     <div class="score-badge" style="display:inline-block; font-size:1.3rem; padding:10px 25px; background:var(--primary-color); color:#fff; border-radius:25px; font-weight:bold;">
@@ -95,34 +102,29 @@ export function renderWriting(container) {
 
                 <div class="eval-section" style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px;">
                     <h4 style="margin-top:0; color:var(--primary-color);">🔍 Koreksi Tata Bahasa (Grammar)</h4>
-                    <p style="margin:5px 0 0 0;">${data.grammarCorrection || data.grammar || 'Grammar Anda sudah bagus.'}</p>
+                    <p style="margin:5px 0 0 0;">${grammarText}</p>
                 </div>
 
                 <div class="eval-section" style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px;">
                     <h4 style="margin-top:0; color:var(--primary-color);">📚 Koreksi Kosakata (Vocabulary)</h4>
-                    <p style="margin:5px 0 0 0;">${data.vocabularyCorrection || data.vocabulary || 'Penggunaan kata sudah tepat.'}</p>
+                    <p style="margin:5px 0 0 0;">${vocabText}</p>
                 </div>
 
                 <div class="eval-section" style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px;">
                     <h4 style="margin-top:0; color:var(--primary-color);">💡 Ekspresi Alami (Natural Expression)</h4>
-                    <p style="margin:5px 0 0 0;">${data.naturalExpression || 'Kalimat dapat dipahami dengan baik.'}</p>
+                    <p style="margin:5px 0 0 0;">${expressionText}</p>
                 </div>
 
                 <div class="eval-section" style="margin-bottom:15px; border-left: 4px solid var(--secondary-color, #34a853); background:#f4faf6; padding:15px; border-radius:8px;">
-                    <h4 style="margin-top:0; color:#2d8e47;">✨ Versi Native Speaker</h4>
-                    <p style="font-style: italic; font-weight: 500; margin:5px 0 0 0;">"${data.nativeVersion || textValue}"</p>
+                    <h4 style="margin-top:0; color:#2d8e47;">✨ Versi Lebih Alami (Native Version)</h4>
+                    <p style="font-style: italic; font-weight: 500; margin:5px 0 0 0;">"${improvedText}"</p>
                 </div>
 
-                <div class="eval-section" style="margin-bottom:20px; background:#f8f9fa; padding:15px; border-radius:8px;">
-                    <h4 style="margin-top:0; color:var(--primary-color);">🇮🇩 Arti dalam Bahasa Indonesia</h4>
-                    <p style="margin:5px 0 0 0;">${data.indonesianTranslation || 'Terjemahan tidak tersedia.'}</p>
-                </div>
-
-                <button id="btn-writing-done" class="action-btn" style="background-color: var(--text-main, #333); margin-top:10px; width:100%;">Selesai & Simpan Nilai</button>
+                <button id="btn-writing-done" class="action-btn" style="background-color: var(--text-main, #333); margin-top:10px; width:100%;">Selesai & Latihan Lagi</button>
             `;
 
             container.querySelector('#btn-writing-done').addEventListener('click', () => {
-                window.location.reload();
+                renderWriting(container); // Reset & pilih tema baru tanpa perlu reload seluruh browser
             });
 
         } catch (error) {
