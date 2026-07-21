@@ -62,7 +62,7 @@ export function renderListening(container) {
             <!-- INDIKATOR LOADING -->
             <div id="listening-loading" style="display:none; text-align:center; margin:40px 0; color:var(--primary-color, #1a73e8);">
                 <div class="spinner" style="border:4px solid #f3f3f3; border-top:4px solid #1a73e8; border-radius:50%; width:35px; height:35px; animation:spin 1s linear infinite; margin:0 auto 15px auto;"></div>
-                <p style="font-weight:bold; margin:0;">⏳ AI sedang menyusun 10 materi audio percakapan baru...</p>
+                <p style="font-weight:bold; margin:0;">⏳ AI sedang menyusun materi audio percakapan baru...</p>
                 <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
             </div>
 
@@ -116,7 +116,6 @@ export function renderListening(container) {
             loadingDiv.style.display = 'block';
 
             try {
-                try {
                 const res = await fetch('/api/listening', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
