@@ -44,7 +44,7 @@ Respond ONLY with a valid JSON array of 10 objects. No markdown formatting, no p
     // 4. Loop Mencoba Setiap API Key Secara Bergantian (Rotasi Otomatis)
     for (const key of keys) {
         try {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
             
             const response = await fetch(url, {
                 method: 'POST',
