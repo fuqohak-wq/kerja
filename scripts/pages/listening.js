@@ -116,17 +116,21 @@ export function renderListening(container) {
             loadingDiv.style.display = 'block';
 
             try {
+                try {
                 const res = await fetch('/api/listening', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ theme: currentThemeLabel, timestamp: Date.now() })
                 });
 
-                if (!res.ok) throw new Error("Gagal mengambil data listening dari server.");
                 const data = await res.json();
 
+                if (!res.ok) {
+                    throw new Error(data.error || "Gagal menghubungi server AI.");
+                }
+
                 quizItems = data.items || [];
-                if (quizItems.length === 0) throw new Error("Materi percakapan listening kosong.");
+                if (quizItems.length === 0) throw new Error("Format materi dari AI tidak sesuai.");
 
                 currentRound = 0;
                 score = 0;
@@ -136,9 +140,11 @@ export function renderListening(container) {
                 loadQuestion(currentRound);
 
             } catch (err) {
-                console.error(err);
+                console.error("Listening Error:", err);
                 loadingDiv.style.display = 'none';
-                alert("Gagal memuat materi: " + err.message);
+                
+                // POPUP / NOTIFIKASI JUJUR JIKA AI GAGAL
+                alert(`⚠️ Layanan AI Gangguan:\n${err.message}\n\nSilakan klik lagi tombol tema untuk mencoba meracik soal baru.`);
                 themeSelector.style.display = 'grid';
             }
         });
