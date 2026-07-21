@@ -1,207 +1,190 @@
 export function renderListening(container) {
     const themes = [
-        { id: 'islamic', label: '🕌 Islamic Studies' },
-        { id: 'religion_kajian', label: '📖 Kajian Agama' },
-        { id: 'religion_quran', label: '📖 Al-Quran dan Hadis' },
-        { id: 'religion_fiqih', label: '📖 Fiqih Tauhid dan Tasawuf' },
-        { id: 'religion_nahwu', label: '📖 Nahwu Sorof dan Bahasa' },
-        { id: 'fitness', label: '🏋️ Kebugaran & Kesehatan' },
-        { id: 'history', label: '⏳ Sejarah Dunia' },
-        { id: 'nature', label: '🌱 Sains & Alam' }
+        { id: 'daily', label: '💬 Percakapan Sehari-hari' },
+        { id: 'travel', label: '✈️ Bandara & Perjalanan' },
+        { id: 'office', label: '💼 Dunia Kerja & Kantor' },
+        { id: 'shopping', label: '🛍️ Belanja & Restoran' },
+        { id: 'academic', label: '🎓 Perkuliahan & Pendidikan' }
     ];
-     
+
     let currentRound = 0;
-    const maxRounds = 10;
     let score = 0;
-    let currentTheme = "";
+    let quizItems = [];
+    let currentThemeLabel = "";
 
     container.innerHTML = `
         <div class="welcome-section">
-            <h2>🎧 AI Listening Practice (10 Soal Berkelanjutan)</h2>
-            <p>Pilih tema. AI akan meracik 10 pertanyaan unik secara estafet agar latihanmu makin mantap!</p>
+            <h2>🎧 AI Listening Academy</h2>
+            <p>Dengarkan percakapan bahasa Inggris dan jawab pertanyaan dengan tepat!</p>
         </div>
-        <div class="reading-container" style="text-align:center;">
-            <div id="theme-selector" style="margin-bottom: 25px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;">
-                ${themes.map(t => `<button class="option-btn theme-btn" data-theme="${t.label}" style="display:inline-block; width:auto; padding: 10px 15px; font-weight: 500;">${t.label}</button>`).join('')}
+        <div class="listening-container" style="max-width:800px; margin:0 auto; padding:10px;">
+            <div id="theme-selector" style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-bottom:25px;">
+                ${themes.map(t => `<button class="option-btn theme-btn" data-theme="${t.label}" style="width:auto; padding:10px 15px;">${t.label}</button>`).join('')}
             </div>
-            
-            <div id="quiz-progress" style="display:none; margin-bottom: 20px; font-weight: bold; color: var(--primary-color);"></div>
 
-            <div id="listening-loading" style="display:none; margin: 20px 0; color: var(--primary-color);">
-                <span class="loading-spinner">⏳</span> <span id="loading-text">Meracik soal baru dari AI...</span>
+            <div id="listening-loading" style="display:none; text-align:center; margin:30px 0; color:var(--primary-color);">
+                <span class="loading-spinner">⏳</span> AI sedang merancang 10 audio percakapan baru...
             </div>
 
             <div id="listening-zone" style="display:none;">
-                <button id="btn-play-audio" class="action-btn" style="background:#34a853; margin-bottom:15px; width: 100%; max-width: 400px;">🔊 Putar Suara Audio</button>
-                <div id="quiz-zone" style="margin-top:20px; text-align:left;"></div>
-                <button id="btn-next-round" class="action-btn" style="background:var(--primary-color); display:none; margin-top:20px; width:100%; max-width:400px;">Pertanyaan Selanjutnya ➡️</button>
+                <div id="quiz-progress" style="font-weight:bold; color:var(--primary-color); margin-bottom:15px; text-align:center;"></div>
+                
+                <div style="background:#fff; border:1px solid #dadce0; border-radius:12px; padding:20px; text-align:center; margin-bottom:20px;">
+                    <button id="btn-play-audio" style="background:#1a73e8; color:white; border:none; padding:12px 25px; border-radius:30px; font-weight:bold; cursor:pointer; font-size:1rem;">
+                        🔊 Putar Audio Percakapan
+                    </button>
+                    <p id="audio-status" style="font-size:0.85rem; color:gray; margin-top:8px;">Klik tombol di atas untuk mendengarkan.</p>
+                </div>
+
+                <div id="quiz-box" style="background:#f8f9fa; border:1px solid #dadce0; padding:20px; border-radius:12px; text-align:left;"></div>
+
+                <button id="btn-next-listening" class="action-btn" style="background:var(--primary-color); display:none; margin:20px auto 0 auto; width:100%; max-width:400px;">Soal Selanjutnya ➡️</button>
             </div>
 
-            <div id="result-zone" style="display:none; padding: 30px 10px;"></div>
+            <div id="result-zone" style="display:none; text-align:center; padding:30px 10px;"></div>
         </div>
     `;
 
     const themeSelector = container.querySelector('#theme-selector');
     const themeButtons = container.querySelectorAll('.theme-btn');
-    const listeningZone = container.querySelector('#listening-zone');
     const loadingDiv = container.querySelector('#listening-loading');
-    const quizZone = container.querySelector('#quiz-zone');
-    const playBtn = container.querySelector('#btn-play-audio');
-    const nextBtn = container.querySelector('#btn-next-round');
+    const listeningZone = container.querySelector('#listening-zone');
     const progressDiv = container.querySelector('#quiz-progress');
+    const playAudioBtn = container.querySelector('#btn-play-audio');
+    const audioStatus = container.querySelector('#audio-status');
+    const quizBox = container.querySelector('#quiz-box');
+    const nextBtn = container.querySelector('#btn-next-listening');
     const resultZone = container.querySelector('#result-zone');
 
     themeButtons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            currentTheme = e.target.getAttribute('data-theme');
-            currentRound = 1;
-            score = 0;
-            
+        btn.addEventListener('click', async (e) => {
+            currentThemeLabel = e.target.getAttribute('data-theme');
             themeSelector.style.display = 'none';
-            progressDiv.style.display = 'block';
-            resultZone.style.display = 'none';
-            
-            loadNewQuestion();
+            loadingDiv.style.display = 'block';
+
+            try {
+                const res = await fetch('/api/listening', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ theme: currentThemeLabel, timestamp: Date.now() })
+                });
+
+                if (!res.ok) throw new Error("Gagal mengambil data listening");
+                const data = await res.json();
+
+                quizItems = data.items || [];
+                if (quizItems.length === 0) throw new Error("Daftar soal listening kosong");
+
+                currentRound = 0;
+                score = 0;
+                loadingDiv.style.display = 'none';
+                listeningZone.style.display = 'block';
+
+                loadQuestion(currentRound);
+
+            } catch (err) {
+                console.error(err);
+                loadingDiv.style.display = 'none';
+                alert("Gagal memuat listening: " + err.message);
+                themeSelector.style.display = 'flex';
+            }
         });
     });
 
-    async function loadNewQuestion() {
-        listeningZone.style.display = 'none';
+    function loadQuestion(idx) {
         nextBtn.style.display = 'none';
-        loadingDiv.style.display = 'block';
-        quizZone.innerHTML = '';
-        
-        if (window.speechSynthesis) {
-            window.speechSynthesis.cancel();
-        }
-        
-        progressDiv.style.display = 'block';
-        progressDiv.innerText = `📝 Pertanyaan ke-${currentRound} dari ${maxRounds} [Benar: ${score}]`;
+        const item = quizItems[idx];
 
-        try {
-            const res = await fetch('/api/listening', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ theme: `${currentTheme} (soal kode acak: ${Math.random()})` }) 
-            });
-            
-            if (!res.ok) throw new Error("Respons jaringan bermasalah.");
-            
-            let rawText = await res.text();
-            rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-            rawText = rawText.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
-            rawText = rawText.replace(/{\\n/g, '{').replace(/\\n}/g, '}').replace(/,\\n/g, ',');
-            
-            const data = JSON.parse(rawText);
-            
-            loadingDiv.style.display = 'none';
-            listeningZone.style.display = 'block';
-            
-            setupListeningQuiz(data);
-        } catch (err) {
-            console.error("Detail Error Parsing:", err);
-            loadingDiv.style.display = 'none';
-            quizZone.innerHTML = `
-                <p style="color:#ea4335; text-align:center; font-weight:500;">⚠️ Gagal memproses data dari AI.</p>
-                <button id="btn-retry-round" class="action-btn" style="margin:15px auto; display:block; background:#f4b400;">🔄 Coba Muat Ulang Soal</button>
-            `;
-            container.querySelector('#btn-retry-round').onclick = loadNewQuestion;
-        }
-    }
+        progressDiv.innerText = `🎧 Soal ke-${idx + 1} dari ${quizItems.length} [Skor: ${score}]`;
+        audioStatus.innerText = "Klik tombol di atas untuk mendengarkan.";
 
-    function setupListeningQuiz(data) {
-        const cleanAudioText = (data.audioText || "").replace(/\\n/g, ' ').replace(/\\r/g, ' ');
-        const cleanQuestion = (data.question || "").replace(/\\n/g, '<br>').replace(/\\r/g, '');
-        const cleanExplanation = (data.explanation || "").replace(/\\n/g, '<br>').replace(/\\r/g, '');
-
-        playBtn.onclick = () => {
-            window.speechSynthesis.cancel(); 
-            const utterance = new SpeechSynthesisUtterance(cleanAudioText);
-            utterance.lang = 'en-US';
-            utterance.rate = 0.85; 
-            window.speechSynthesis.speak(utterance);
+        // Event Listener Putar Audio Percakapan (Web Speech Synthesis API)
+        playAudioBtn.onclick = () => {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Hentikan ucapan sebelumnya
+                const utterance = new SpeechSynthesisUtterance(item.transcript);
+                utterance.lang = 'en-US';
+                utterance.rate = 0.9; // Kecepatan bicara yang nyaman
+                
+                utterance.onstart = () => { audioStatus.innerText = "🗣️ Sedang memutar percakapan..."; };
+                utterance.onend = () => { audioStatus.innerText = "✅ Selesai diputar. Silakan jawab pertanyaan."; };
+                
+                window.speechSynthesis.speak(utterance);
+            } else {
+                alert("Browser Anda tidak mendukung Web Speech API.");
+            }
         };
 
-        quizZone.innerHTML = `
-            <p class="question-title" style="font-size: 1.1rem; margin-bottom: 15px;"><strong>Pertanyaan:</strong><br>${cleanQuestion}</p>
-            <div class="options-list" style="display: flex; flex-direction: column; gap: 10px;">
-                ${(data.options || []).map(opt => {
-                    const cleanOpt = opt.replace(/\\n/g, ' ').replace(/\\r/g, '');
-                    return `<button class="option-btn listen-opt" data-val="${cleanOpt}" style="text-align: left; padding: 12px; width: 100%;">${cleanOpt}</button>`;
-                }).join('')}
+        // Render Pilihan Jawaban
+        quizBox.innerHTML = `
+            <p style="font-size:1.1rem; margin-bottom:15px; font-weight:bold;">${item.question}</p>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                ${item.options.map(opt => `<button class="option-btn listen-opt" data-val="${opt}" style="text-align:left; padding:12px; width:100%;">${opt}</button>`).join('')}
             </div>
-            <div id="listen-explanation" style="margin-top: 20px;"></div>
+            <div id="quiz-explanation" style="margin-top:20px;"></div>
         `;
 
-        const optButtons = quizZone.querySelectorAll('.listen-opt');
-        optButtons.forEach(optBtn => {
-            optBtn.addEventListener('click', (e) => {
+        const optBtns = quizBox.querySelectorAll('.listen-opt');
+        optBtns.forEach(btn => {
+            btn.onclick = (e) => {
+                optBtns.forEach(b => b.disabled = true);
                 const selected = e.target.getAttribute('data-val');
-                const expl = quizZone.querySelector('#listen-explanation');
-                
-                optButtons.forEach(b => b.disabled = true);
-                const cleanCorrectAnswer = (data.answer || "").replace(/\\n/g, ' ').replace(/\\r/g, '').trim();
-                
-                if (selected.trim() === cleanCorrectAnswer) {
-                    score++;
+                const explBox = quizBox.querySelector('#quiz-explanation');
+
+                if (selected === item.answer) {
+                    score += 10;
                     e.target.style.background = '#e6f4ea';
                     e.target.style.borderColor = '#34a853';
-                    expl.innerHTML = `
-                        <div class="explanation-box" style="border-left: 4px solid #34a853; background: #f4faf6; padding: 15px; border-radius: 6px;">
-                            <h4 style="color:#34a853; margin: 0 0 5px 0;">✅ Benar!</h4>
-                            <p style="margin:0; font-size:0.95rem;">${cleanExplanation}</p>
+                    explBox.innerHTML = `
+                        <div style="border-left:4px solid #34a853; background:#f4faf6; padding:12px; border-radius:6px; color:#137333;">
+                            <strong>🎉 Jawaban Benar!</strong><br>${item.explanation}
                         </div>
                     `;
                 } else {
                     e.target.style.background = '#fce8e6';
                     e.target.style.borderColor = '#ea4335';
-                    expl.innerHTML = `
-                        <div class="explanation-box" style="border-left: 4px solid #ea4335; background: #fdf5f5; padding: 15px; border-radius: 6px;">
-                            <h4 style="color:#ea4335; margin: 0 0 5px 0;">❌ Kurang Tepat</h4>
-                            <p style="margin:0 0 8px 0; font-size:0.95rem;">Jawaban yang betul: <strong>${cleanCorrectAnswer}</strong></p>
-                            <p style="margin:0; font-size:0.9rem; color: var(--text-muted);">${cleanExplanation}</p>
+                    explBox.innerHTML = `
+                        <div style="border-left:4px solid #ea4335; background:#fdf5f5; padding:12px; border-radius:6px; color:#c5221f;">
+                            <strong>❌ Kurang Tepat.</strong> Jawaban benar: <strong>${item.answer}</strong><br>${item.explanation}
                         </div>
                     `;
                 }
-                
+
                 nextBtn.style.display = 'block';
-                if(currentRound >= maxRounds) {
-                    nextBtn.innerText = "📊 Lihat Hasil Akhir Kuis";
+                if (currentRound >= quizItems.length - 1) {
+                    nextBtn.innerText = "📊 Rangkum Skor Akhir Listening";
                 } else {
-                    nextBtn.innerText = "Pertanyaan Selanjutnya ➡️";
+                    nextBtn.innerText = "Soal Selanjutnya ➡️";
                 }
-            });
+            };
         });
     }
 
     nextBtn.onclick = () => {
-        if (currentRound < maxRounds) {
-            currentRound++;
-            loadNewQuestion();
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        
+        currentRound++;
+        if (currentRound < quizItems.length) {
+            loadQuestion(currentRound);
         } else {
-            if (window.speechSynthesis) window.speechSynthesis.cancel();
             listeningZone.style.display = 'none';
-            progressDiv.style.display = 'none';
             resultZone.style.display = 'block';
-            
-            const finalScore = Math.round((score / maxRounds) * 100);
 
-            // SIMPAN SKOR LISTENING KE SISTEM SKOR GLOBAL
+            const finalScore = score; // Total 10 soal x 10 poin = 100 max
             if (window.updateGlobalScore) {
                 window.updateGlobalScore('listening', finalScore);
             }
-            
+
             resultZone.innerHTML = `
-                <div style="font-size: 4rem;">🏆</div>
-                <h3 style="margin: 15px 0; color: var(--primary-color);">Sesi Latihan Listening Selesai!</h3>
-                <p style="font-size: 1.2rem; margin-bottom: 10px;">Tema: <strong>${currentTheme}</strong></p>
-                <div class="score-badge" style="display:inline-block; font-size:1.5rem; padding: 10px 30px; margin-bottom: 25px;">
-                    Skor Listening: ${finalScore} / 100
+                <div style="font-size:4rem;">🎧</div>
+                <h3 style="margin:15px 0; color:var(--primary-color);">Sesi Evaluasi Listening Selesai!</h3>
+                <p style="font-size:1.2rem; margin-bottom:10px;">Tema Fokus: <strong>${currentThemeLabel}</strong></p>
+                <div class="score-badge" style="display:inline-block; font-size:1.5rem; padding:10px 30px; margin-bottom:25px; background:var(--primary-color); color:#fff; border-radius:30px;">
+                    Nilai Anda: ${finalScore} / 100
                 </div>
-                <p style="color: var(--text-muted); margin-bottom: 25px;">Anda menjawab benar ${score} dari ${maxRounds} soal.</p>
-                <button id="btn-restart-listening" class="action-btn" style="width:100%; max-width:400px;">🔄 Pilih Tema Lain</button>
+                <button id="btn-restart-listening" class="action-btn" style="width:100%; max-width:400px;">🔄 Ganti Tema Pilihan Baru</button>
             `;
-            
+
             container.querySelector('#btn-restart-listening').onclick = () => {
                 resultZone.style.display = 'none';
                 themeSelector.style.display = 'flex';
