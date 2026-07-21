@@ -15,33 +15,31 @@ export default async function handler(req, res) {
     const { action, currentMaterial } = req.body || {};
     let prompt = "";
 
-    if (action === 'get-material-bulk') {
-        prompt = `Generate a JSON array containing 10 diverse daily vocabulary themes for English learners. 
-        You MUST output ONLY valid JSON array using this exact structure without markdown:
-        [
-          {
-            "theme": "Theme title in English",
-            "words": [
-              {"word": "word 1", "meaning": "Arti Indonesia", "example": "Example sentence."},
-              {"word": "word 2", "meaning": "Arti Indonesia", "example": "Example sentence."}
-            ]
-          }
-        ]`;
-    } else if (action === 'get-quizzes') {
-        prompt = `Based on this vocabulary material: ${JSON.stringify(currentMaterial || {})}, generate exactly 5 multiple choice quiz questions.
-        Output ONLY valid JSON format:
-        {
-          "quizzes": [
-            {
-              "question": "Quiz question text in English?",
-              "options": ["Option A", "Option B", "Option C", "Option D"],
-              "answer": "Exact matching string of the correct option",
-              "explanation": "Brief explanation in Bahasa Indonesia."
-            }
-          ]
-        }`;
+    if (action === 'get-quizzes') {
+        prompt = `Based on this vocabulary context/material: ${JSON.stringify(currentMaterial || {})}, generate EXACTLY 5 multiple choice quiz questions.
+Output MUST be strictly in valid JSON format matching this structure:
+{
+  "quizzes": [
+    {
+      "question": "Question about word meaning or context in English?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "answer": "Exact matching string of correct option",
+      "explanation": "Penjelasan singkat mengapa jawaban ini benar dalam Bahasa Indonesia."
+    }
+  ]
+}`;
     } else {
-        prompt = `Generate a JSON array containing 5 diverse daily vocabulary themes for English learners. Output valid JSON array without markdown.`;
+        // Default / get-material-bulk: Minta 5 Tema/Kosakata harian
+        prompt = `Generate 5 daily English vocabulary items with practical examples for learners.
+Output MUST be strictly a valid JSON array matching this structure:
+[
+  {
+    "theme": "Daily Life / Workplace / Travel / Tech / Social",
+    "word": "Word or Phrase",
+    "meaning": "Arti kata dalam Bahasa Indonesia",
+    "example": "Example sentence in English."
+  }
+]`;
     }
 
     let lastError = null;
@@ -61,7 +59,7 @@ export default async function handler(req, res) {
 
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.error?.message || "Gagal dari Google API");
+                throw new Error(errData.error?.message || "Gagal dari API Google");
             }
 
             const data = await response.json();
@@ -69,13 +67,17 @@ export default async function handler(req, res) {
             if (!rawText) throw new Error("Respons AI kosong.");
 
             rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
-            const firstOpen = rawText.indexOf(action === 'get-material-bulk' ? '[' : '{');
-            const lastClose = rawText.lastIndexOf(action === 'get-material-bulk' ? ']' : '}');
+            
+            // Ekstrak JSON murni
+            const isArrayReq = action !== 'get-quizzes';
+            const firstOpen = rawText.indexOf(isArrayReq ? '[' : '{');
+            const lastClose = rawText.lastIndexOf(isArrayReq ? ']' : '}');
             if (firstOpen !== -1 && lastClose !== -1) {
                 rawText = rawText.substring(firstOpen, lastClose + 1);
             }
 
-            return res.status(200).json(JSON.parse(rawText));
+            const parsed = JSON.parse(rawText);
+            return res.status(200).json(parsed);
 
         } catch (err) {
             lastError = err.message;
@@ -83,27 +85,26 @@ export default async function handler(req, res) {
         }
     }
 
-    console.error("Error di API Vocab:", lastError);
+    console.error("Error Vocab API:", lastError);
+
+    // Fallback jika API terbentur limit
     if (action === 'get-quizzes') {
         return res.status(200).json({
             quizzes: [
-                {
-                    question: "What is the meaning of 'Achieve'?",
-                    options: ["Mencapai", "Gagal", "Menyerah", "Menolak"],
-                    answer: "Mencapai",
-                    explanation: "Achieve berarti berhasil mencapai suatu tujuan."
-                }
+                { question: "Apa arti dari kata 'Achieve'?", options: ["Mencapai", "Menyerah", "Menolak", "Menunda"], answer: "Mencapai", explanation: "Achieve berarti berhasil mencapai suatu tujuan." },
+                { question: "Manakah contoh penggunaan 'Improve' yang tepat?", options: ["I want to improve my English.", "I improve to sleep.", "She improve water.", "They improve yesterday."], answer: "I want to improve my English.", explanation: "Improve berarti meningkatkan keterampilan atau kualitas." },
+                { question: "Sinonim dari kata 'Crucial' adalah...", options: ["Important", "Easy", "Small", "Useless"], answer: "Important", explanation: "Crucial bermakna sangat penting atau krusial." },
+                { question: "Apa arti dari kata 'Enthusiastic'?", options: ["Antusias", "Sedih", "Marah", "Lelah"], answer: "Antusias", explanation: "Enthusiastic berarti menunjukkan semangat atau antusiasme tinggi." },
+                { question: "Pilih kata yang tepat: 'She showed great _____ in her work.'", options: ["Dedication", "Dedicating", "Dedicate", "Dedicated"], answer: "Dedication", explanation: "Kata benda (noun) 'Dedication' tepat untuk melengkapi kalimat tersebut." }
             ]
         });
     }
 
     return res.status(200).json([
-        {
-            theme: "Daily Workplace",
-            words: [
-                { word: "Deadline", meaning: "Batas waktu", example: "The deadline is tomorrow." },
-                { word: "Schedule", meaning: "Jadwal", example: "Check your schedule." }
-            ]
-        }
+        { theme: "Workplace", word: "Accomplish", meaning: "Menyelesaikan / Mencapai", example: "We accomplished all our goals today." },
+        { theme: "Daily Life", word: "Convenient", meaning: "Praktis / Memudahkan", example: "Online shopping is very convenient." },
+        { theme: "Education", word: "Grasp", meaning: "Memahami", example: "She quickly grasped the new grammar rules." },
+        { theme: "Communication", word: "Articulate", meaning: "Pandai berbicara / Jelas", example: "He gave an articulate presentation." },
+        { theme: "Lifestyle", word: "Consistency", meaning: "Konsistensi / Keselarasan", example: "Consistency is key to mastering English." }
     ]);
 }
