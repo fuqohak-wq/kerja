@@ -96,7 +96,7 @@ export function renderHome(container) {
 
     container.querySelector('#card-grammar').onclick = (e) => {
         e.stopPropagation();
-        openDailyModal('grammar", container);
+        openDailyModal('grammar', container);
     };
 
     // Tombol Kirim Google Sheet B6
