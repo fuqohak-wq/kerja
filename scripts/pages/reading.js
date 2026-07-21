@@ -19,7 +19,6 @@ export function renderReading(container) {
     const maxRounds = 10;
     let score = 0;
     let currentTheme = "";
-    let savedParagraphs = []; // Menyimpan teks agar tidak berubah selama 10 soal satu tema
 
     container.innerHTML = `
         <div class="welcome-section">
@@ -67,7 +66,6 @@ export function renderReading(container) {
             currentTheme = e.target.getAttribute('data-theme');
             currentRound = 1;
             score = 0;
-            savedParagraphs = []; // Reset penampung teks
             
             themeSelector.style.display = 'none';
             resultZone.style.display = 'none';
@@ -93,11 +91,10 @@ export function renderReading(container) {
                 body: JSON.stringify({ theme: `${currentTheme} (acak: ${Math.random()})` })
             });
 
-            if (!res.ok) throw new Error();
+            if (!res.ok) throw new Error("Gagal mengambil data reading");
             
             let rawText = await res.text();
             rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-            // Kebal Eror enter data json
             rawText = rawText.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
             rawText = rawText.replace(/{\\n/g, '{').replace(/\\n}/g, '}').replace(/,\\n/g, ',');
             
@@ -106,7 +103,6 @@ export function renderReading(container) {
             loadingDiv.style.display = 'none';
             readingZone.style.display = 'block';
 
-            // Pertahankan teks artikel yang sama di ronde 1, atau perbarui bertahap agar wawasan meluas
             renderInteractiveText(data);
             setupQuiz(data);
 
@@ -121,16 +117,13 @@ export function renderReading(container) {
         }
     }
 
-    // Fungsi canggih untuk memotong kata dan menjadikannya interaktif saat diklik
     function renderInteractiveText(data) {
         const paragraphs = [data.paragraph1, data.paragraph2, data.paragraph3];
         
         const htmlContent = paragraphs.map(para => {
             if (!para) return "";
-            // Pisahkan kalimat berdasarkan spasi menjadi kumpulan kata tunggal
             const words = para.split(/\s+/);
             const wrappedWords = words.map(word => {
-                // Bersihkan tanda baca untuk pencocokan kamus AI
                 const cleanWord = word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g,"").toLowerCase();
                 return `<span class="reading-clickable-word" data-clean="${cleanWord}" style="cursor:pointer; padding:2px 1px; border-radius:4px; transition:all 0.2s;">${word}</span>`;
             }).join(' ');
@@ -139,7 +132,6 @@ export function renderReading(container) {
 
         textArticleBox.innerHTML = htmlContent;
 
-        // Tambahkan event click untuk fitur terjemahan kata instan
         const wordSpans = textArticleBox.querySelectorAll('.reading-clickable-word');
         wordSpans.forEach(span => {
             span.addEventListener('mouseover', (e) => { e.target.style.background = '#e8f0fe'; });
@@ -147,11 +139,9 @@ export function renderReading(container) {
             
             span.addEventListener('click', (e) => {
                 const targetWord = e.target.getAttribute('data-clean');
-                
-                // Cari kecocokan kata di kamus terjemahan dari Gemini
                 let translation = "Arti tidak ditemukan dalam mini-dict.";
+                
                 if (data.vocabularyMap) {
-                    // Cari kecocokan langsung atau parsial
                     const keys = Object.keys(data.vocabularyMap);
                     const matchedKey = keys.find(k => targetWord.includes(k.toLowerCase()) || k.toLowerCase().includes(targetWord));
                     if (matchedKey) {
@@ -159,7 +149,6 @@ export function renderReading(container) {
                     }
                 }
                 
-                // Tampilkan Popup Terjemahan di bagian atas teks
                 dictPopup.style.display = 'block';
                 dictPopup.innerHTML = `🔍 <strong>${e.target.innerText.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g,"")}</strong> &rarr; <span style="color:#8ab4f8;">${translation}</span>`;
             });
@@ -170,7 +159,7 @@ export function renderReading(container) {
         quizArticleBox.innerHTML = `
             <p style="font-size:1.1rem; margin-bottom:15px; font-weight:bold;">Pertanyaan Kuis:<br>${data.question}</p>
             <div style="display:flex; flex-direction:column; gap:10px;">
-                ${data.options.map(opt => `<button class="option-btn read-opt" data-val="${opt}" style="text-align:left; padding:12px; width:100%;">${opt}</button>`).join('')}
+                ${(data.options || []).map(opt => `<button class="option-btn read-opt" data-val="${opt}" style="text-align:left; padding:12px; width:100%;">${opt}</button>`).join('')}
             </div>
             <div id="read-quiz-explanation" style="margin-top:20px;"></div>
         `;
@@ -215,7 +204,7 @@ export function renderReading(container) {
         });
     }
 
-nextBtn.onclick = () => {
+    nextBtn.onclick = () => {
         if (currentRound < maxRounds) {
             currentRound++;
             loadReadingSession();
@@ -225,9 +214,8 @@ nextBtn.onclick = () => {
             resultZone.style.display = 'block';
             
             const finalScore = Math.round((score / maxRounds) * 100);
-            if (!window.globalScores) window.globalScores = {};
             
-            // KODE BARU (Menggunakan finalScore, bukan report.overall)
+            // SIMPAN SKOR READING KE GLOBAL
             if (window.updateGlobalScore) {
                 window.updateGlobalScore('reading', finalScore);
             }
