@@ -1,6 +1,5 @@
 export function renderListening(container) {
     const themes = [
-        // --- TEMA ASLI PANJENENGAN ---
         { id: 'daily', label: '💬 Percakapan Sehari-hari' },
         { id: 'travel', label: '✈️ Bandara & Perjalanan' },
         { id: 'kitab', label: '📜 Nahwu & Shorof' },
@@ -9,27 +8,22 @@ export function renderListening(container) {
         { id: 'office', label: '💼 Dunia Kerja & Kantor' },
         { id: 'shopping', label: '🛍️ Belanja & Restoran' },
         { id: 'academic', label: '🎓 Perkuliahan & Pendidikan' },
-
-        // --- TAMBAHAN TEMA KEISLAMAN & PESANTREN ---
         { id: 'akhlak', label: '🕌 Akhlak, Tasawuf & Adab Santri' },
         { id: 'tarikh', label: '🏛️ Tarikh & Sejarah Peradaban Islam' },
         { id: 'dakwah', label: '🎙️ Retorika Dakwah & Public Speaking' },
         { id: 'pesantren', label: '🏰 Kehidupan & Manajemen Pesantren' },
         { id: 'muamalah', label: '🤝 Ekonomi Syariah & Muamalah' },
         { id: 'tajwid', label: '🎙️ Seni Qira\'ah & Ilmu Tajwid' },
-
-        // --- TAMBAHAN TEMA AKADEMIK & UMUM ---
         { id: 'research', label: '📚 Penulisan Jurnal & Metodologi' },
         { id: 'seminar', label: '🎤 Konferensi & Seminar Internasional' },
         { id: 'health', label: '🩺 Kesehatan & Thibbun Nabawi' },
         { id: 'technology', label: '💻 Sains & Teknologi Digital' }
     ];
 
-    let currentRound = 1;
-    const maxRounds = 5; // 5 Soal Per Sesi Sesuai Standar Latihan Cepat
+    let currentRound = 0;
     let score = 0;
+    let quizItems = [];
     let currentThemeLabel = "";
-    let currentItem = null;
 
     container.innerHTML = `
         <div class="welcome-section" style="text-align:center; margin-bottom:20px;">
@@ -38,28 +32,19 @@ export function renderListening(container) {
         </div>
 
         <div class="listening-container" style="max-width:850px; margin:0 auto; padding:10px;">
-            
             <div id="theme-selector" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap:12px; margin-bottom:25px;">
                 ${themes.map(t => `
                     <button class="option-btn theme-btn" data-theme="${t.label}" style="
-                        text-align:left; 
-                        padding:12px 16px; 
-                        border-radius:10px; 
-                        border:1px solid #dadce0; 
-                        background:#fff; 
-                        cursor:pointer; 
-                        font-weight:500; 
-                        font-size:0.95rem;
+                        text-align:left; padding:12px 16px; border-radius:10px; border:1px solid #dadce0; 
+                        background:#fff; cursor:pointer; font-weight:500; font-size:0.95rem;
                         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-                    ">
-                        ${t.label}
-                    </button>
+                    ">${t.label}</button>
                 `).join('')}
             </div>
 
             <div id="listening-loading" style="display:none; text-align:center; margin:40px 0; color:var(--primary-color, #1a73e8);">
                 <div class="spinner" style="border:4px solid #f3f3f3; border-top:4px solid #1a73e8; border-radius:50%; width:35px; height:35px; animation:spin 1s linear infinite; margin:0 auto 15px auto;"></div>
-                <p id="loading-text" style="font-weight:bold; margin:0;">⏳ AI sedang meracik percakapan audio...</p>
+                <p style="font-weight:bold; margin:0;">⏳ AI sedang menyusun 10 paket soal percakapan...</p>
                 <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
             </div>
 
@@ -85,7 +70,6 @@ export function renderListening(container) {
     const themeSelector = container.querySelector('#theme-selector');
     const themeButtons = container.querySelectorAll('.theme-btn');
     const loadingDiv = container.querySelector('#listening-loading');
-    const loadingText = container.querySelector('#loading-text');
     const listeningZone = container.querySelector('#listening-zone');
     const progressDiv = container.querySelector('#quiz-progress');
     const playAudioBtn = container.querySelector('#btn-play-audio');
@@ -97,53 +81,50 @@ export function renderListening(container) {
     themeButtons.forEach(btn => {
         btn.addEventListener('click', async (e) => {
             currentThemeLabel = e.target.getAttribute('data-theme');
-            currentRound = 1;
-            score = 0;
             themeSelector.style.display = 'none';
-            fetchNextQuestion();
+            loadingDiv.style.display = 'block';
+
+            try {
+                const res = await fetch('/api/listening', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ theme: currentThemeLabel })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Gagal menghubungi AI.");
+
+                quizItems = data.items || [];
+                if (quizItems.length === 0) throw new Error("Materi dari AI tidak lengkap.");
+
+                currentRound = 0;
+                score = 0;
+                loadingDiv.style.display = 'none';
+                listeningZone.style.display = 'block';
+
+                loadQuestion(currentRound);
+
+            } catch (err) {
+                console.error(err);
+                loadingDiv.style.display = 'none';
+                alert(`⚠️ Kendala AI:\n${err.message}\n\nSilakan coba klik lagi tombol tema.`);
+                themeSelector.style.display = 'grid';
+            }
         });
     });
 
-    async function fetchNextQuestion() {
+    function loadQuestion(idx) {
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-        
-        listeningZone.style.display = 'none';
         nextBtn.style.display = 'none';
-        loadingDiv.style.display = 'block';
-        loadingText.innerText = `⏳ AI sedang meracik Soal ke-${currentRound}...`;
+        const item = quizItems[idx];
 
-        try {
-            const res = await fetch('/api/listening', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ theme: currentThemeLabel, round: currentRound })
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Gagal mendapatkan soal dari AI.");
-
-            currentItem = data;
-            loadingDiv.style.display = 'none';
-            listeningZone.style.display = 'block';
-
-            renderSingleQuestion();
-
-        } catch (err) {
-            console.error(err);
-            loadingDiv.style.display = 'none';
-            alert(`⚠️ Kendala Koneksi AI:\n${err.message}\n\nSilakan klik OK untuk mencoba memuat soal kembali.`);
-            themeSelector.style.display = 'grid';
-        }
-    }
-
-    function renderSingleQuestion() {
-        progressDiv.innerText = `🎧 Soal ke-${currentRound} dari ${maxRounds} [Skor: ${score}]`;
+        progressDiv.innerText = `🎧 Soal ke-${idx + 1} dari ${quizItems.length} [Skor Sementara: ${score}]`;
         audioStatus.innerText = "Klik tombol di atas untuk mendengarkan audio.";
 
         playAudioBtn.onclick = () => {
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
-                const utterance = new SpeechSynthesisUtterance(currentItem.transcript);
+                const utterance = new SpeechSynthesisUtterance(item.transcript);
                 utterance.lang = 'en-US';
                 utterance.rate = 0.88;
                 
@@ -157,18 +138,12 @@ export function renderListening(container) {
         };
 
         quizBox.innerHTML = `
-            <p style="font-size:1.1rem; margin-bottom:15px; font-weight:bold; color:#202124;">${currentItem.question}</p>
+            <p style="font-size:1.1rem; margin-bottom:15px; font-weight:bold; color:#202124;">${item.question}</p>
             <div style="display:flex; flex-direction:column; gap:10px;">
-                ${currentItem.options.map(opt => `
+                ${item.options.map(opt => `
                     <button class="option-btn listen-opt" data-val="${opt}" style="
-                        text-align:left; 
-                        padding:12px 15px; 
-                        width:100%; 
-                        border:1px solid #ccc; 
-                        border-radius:8px; 
-                        background:#fff; 
-                        cursor:pointer; 
-                        font-size:0.95rem;
+                        text-align:left; padding:12px 15px; width:100%; border:1px solid #ccc; 
+                        border-radius:8px; background:#fff; cursor:pointer; font-size:0.95rem;
                     ">${opt}</button>
                 `).join('')}
             </div>
@@ -182,13 +157,13 @@ export function renderListening(container) {
                 const selected = e.target.getAttribute('data-val');
                 const explBox = quizBox.querySelector('#quiz-explanation');
 
-                if (selected === currentItem.answer) {
-                    score += 20; // 5 soal x 20 poin = 100 max
+                if (selected === item.answer) {
+                    score += 10;
                     e.target.style.background = '#e6f4ea';
                     e.target.style.borderColor = '#34a853';
                     explBox.innerHTML = `
                         <div style="border-left:4px solid #34a853; background:#f4faf6; padding:14px; border-radius:8px; color:#137333;">
-                            <strong>🎉 Masya Allah, Jawaban Benar!</strong><br>${currentItem.explanation}
+                            <strong>🎉 Masya Allah, Jawaban Benar!</strong><br>${item.explanation}
                         </div>
                     `;
                 } else {
@@ -196,13 +171,13 @@ export function renderListening(container) {
                     e.target.style.borderColor = '#ea4335';
                     explBox.innerHTML = `
                         <div style="border-left:4px solid #ea4335; background:#fdf5f5; padding:14px; border-radius:8px; color:#c5221f;">
-                            <strong>📌 Jawaban Kurang Tepat.</strong><br>Jawaban yang benar: <strong>${currentItem.answer}</strong><br><small style="margin-top:4px; display:block;">${currentItem.explanation}</small>
+                            <strong>📌 Jawaban Kurang Tepat.</strong><br>Jawaban yang benar: <strong>${item.answer}</strong><br><small style="margin-top:4px; display:block;">${item.explanation}</small>
                         </div>
                     `;
                 }
 
                 nextBtn.style.display = 'block';
-                if (currentRound >= maxRounds) {
+                if (currentRound >= quizItems.length - 1) {
                     nextBtn.innerText = "📊 Selesai & Rangkum Skor Akhir";
                 } else {
                     nextBtn.innerText = "Soal Selanjutnya ➡️";
@@ -212,9 +187,11 @@ export function renderListening(container) {
     }
 
     nextBtn.onclick = () => {
-        if (currentRound < maxRounds) {
-            currentRound++;
-            fetchNextQuestion();
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        
+        currentRound++;
+        if (currentRound < quizItems.length) {
+            loadQuestion(currentRound);
         } else {
             listeningZone.style.display = 'none';
             resultZone.style.display = 'block';
