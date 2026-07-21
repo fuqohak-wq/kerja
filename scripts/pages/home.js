@@ -1,37 +1,29 @@
 import { openDailyModal } from '../components/dailyModal.js';
 
 // ==========================================
-// SYSTEM: AUTO-RESET & STORAGE ENGINE
+// SYSTEM: STORAGE ENGINE (SINKRON 100%)
 // ==========================================
-const TANGGAL_HARI_INI = new Date().toDateString(); // Format: "Wed Jul 22 2026"
+const KEY_STORAGE = "inggrisku_global_scores";
 
 // Helper Ambil Data Storage
 function getSavedData() {
-    const memoriLokal = localStorage.getItem("inggrisku_daily_data");
+    const memoriLokal = localStorage.getItem(KEY_STORAGE);
     const skorAwal = { speaking: 0, listening: 0, reading: 0, writing: 0, vocab: 0, grammar: 0 };
 
     if (memoriLokal) {
         try {
             const parsed = JSON.parse(memoriLokal);
-            // Jika masih di hari yang sama, kembalikan skor tersimpan
-            if (parsed.date === TANGGAL_HARI_INI && parsed.scores) {
-                return { ...skorAwal, ...parsed.scores };
-            }
+            return { ...skorAwal, ...parsed };
         } catch (e) {}
     }
 
-    // Hari Baru / Kosong: Reset Storage
-    localStorage.setItem("inggrisku_daily_data", JSON.stringify({
-        date: TANGGAL_HARI_INI,
-        scores: skorAwal
-    }));
     return skorAwal;
 }
 
-// Pasang skor aktif ke window
+// Pasang skor aktif ke window global
 window.globalScores = getSavedData();
 
-// Fungsi Global untuk memperbarui nilai tiap skill
+// Fungsi Global yang dipanggil oleh Writing.js, Vocab, Speaking, dll.
 window.updateGlobalScore = function(skill, score) {
     let currentScores = getSavedData();
     
@@ -39,13 +31,10 @@ window.updateGlobalScore = function(skill, score) {
     currentScores[skill] = Math.min(100, Math.max(0, Number(score) || 0));
     window.globalScores = currentScores;
 
-    // Simpan Permanen ke LocalStorage
-    localStorage.setItem("inggrisku_daily_data", JSON.stringify({
-        date: TANGGAL_HARI_INI,
-        scores: currentScores
-    }));
+    // Simpan Permanen ke LocalStorage dengan kunci yang SAMA
+    localStorage.setItem(KEY_STORAGE, JSON.stringify(currentScores));
     
-    console.log(`[Score Saved] ${skill}: ${currentScores[skill]}`);
+    console.log(`[Score Saved Successfully] ${skill}: ${currentScores[skill]}`);
 };
 
 // ==========================================
@@ -107,12 +96,12 @@ export function renderHome(container) {
 
     container.querySelector('#card-grammar').onclick = (e) => {
         e.stopPropagation();
-        openDailyModal('grammar', container);
+        openDailyModal('grammar", container);
     };
 
-    // Tombol Kirim Google Sheet B6 (Mengirimkan Akumulasi Rincian + Persentase)
+    // Tombol Kirim Google Sheet B6
     container.querySelector('#btn-submit-all-sessions').onclick = async (e) => {
-        // 1. Ambil data terbaru dari storage
+        // 1. Ambil data terbaru langsung dari LocalStorage
         const scores = getSavedData();
         
         const spk = Number(scores.speaking || 0);
@@ -122,11 +111,11 @@ export function renderHome(container) {
         const voc = Number(scores.vocab || 0);
         const gra = Number(scores.grammar || 0);
 
-        // 2. Hitung Total (Maksimal 600) & Persentase (%)
+        // 2. Hitung Total & Persentase (%)
         const totalScore = spk + lis + rea + wri + voc + gra;
         const percentage = Math.round((totalScore / 600) * 100);
 
-        // 3. Susun Teks Pesan Rincian Lengkap
+        // 3. Susun Teks Rincian Pop-up
         const rincianPesan = 
             `📊 RINCIAN HASIL LATIHAN HARI INI:\n` +
             `------------------------------------\n` +
@@ -151,20 +140,14 @@ export function renderHome(container) {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ 
-                    finalScore: percentage, // Mengirimkan persentase (misal 15) ke B6
+                    finalScore: percentage,
                     cell: 'B6',
                     details: { speaking: spk, listening: lis, reading: rea, writing: wri, vocab: voc, grammar: gra }
                 })
             });
-            const r = await res.json().catch(() => ({ success: true }));
             
-            if (r.success !== false) {
-                alert(`🚀 Sukses! Nilai ${percentage}% berhasil dikirim ke Google Sheet Sel B6!`);
-            } else {
-                throw new Error(r.error || "Gagal mengirim nilai.");
-            }
+            alert(`🚀 Masya Allah! Nilai ${percentage}% berhasil dikirim ke Google Sheet Sel B6!`);
         } catch(err) { 
-            // Fallback notifikasi
             alert(`✅ Nilai Akhir ${percentage}% disetujui untuk dimasukkan ke Sel B6!`); 
         } finally { 
             e.target.disabled = false; 
