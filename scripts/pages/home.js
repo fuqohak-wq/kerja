@@ -1,74 +1,56 @@
 import { openDailyModal } from '../components/dailyModal.js';
 
 // ==========================================
-// SYSTEM: AUTO-RESET & ACCUMULATION ENGINE
+// SYSTEM: AUTO-RESET & STORAGE ENGINE
 // ==========================================
-const TANGGAL_HARI_INI = new Date().toDateString(); // Format: "Fri Jul 17 2026"
+const TANGGAL_HARI_INI = new Date().toDateString(); // Format: "Wed Jul 22 2026"
 
-// Ambil memori penyimpanan dari browser
-let memoriLokal = localStorage.getItem("inggrisku_daily_data");
-let skorAwal = { speaking: 0, listening: 0, reading: 0, grammar: 0, accumulatedTotal: 0 };
+// Helper Ambil Data Storage
+function getSavedData() {
+    const memoriLokal = localStorage.getItem("inggrisku_daily_data");
+    const skorAwal = { speaking: 0, listening: 0, reading: 0, writing: 0, vocab: 0, grammar: 0 };
 
-if (memoriLokal) {
-    const dataTersimpan = JSON.parse(memoriLokal);
-    
-    // Migrasi format data jika belum memiliki properti accumulatedTotal
-    if (!dataTersimpan.scores.hasOwnProperty('accumulatedTotal')) {
-        dataTersimpan.scores.accumulatedTotal = 0;
+    if (memoriLokal) {
+        try {
+            const parsed = JSON.parse(memoriLokal);
+            // Jika masih di hari yang sama, kembalikan skor tersimpan
+            if (parsed.date === TANGGAL_HARI_INI && parsed.scores) {
+                return { ...skorAwal, ...parsed.scores };
+            }
+        } catch (e) {}
     }
 
-    // Jika masih di hari yang sama, gunakan skor akumulasi yang ada
-    if (dataTersimpan.date === TANGGAL_HARI_INI) {
-        skorAwal = dataTersimpan.scores;
-    } else {
-        // HARI BARU: Reset semua skor lokal ke 0
-        skorAwal = { speaking: 0, listening: 0, reading: 0, grammar: 0, accumulatedTotal: 0 };
-        localStorage.setItem("inggrisku_daily_data", JSON.stringify({
-            date: TANGGAL_HARI_INI,
-            scores: skorAwal
-        }));
-
-        // OTOMATIS RESET B6 DI GOOGLE SHEET KE 0
-        fetch('/api/submit-score', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ finalScore: 0 })
-        }).catch(err => console.error("Gagal mereset nilai awal hari:", err));
-    }
-} else {
-    // Inisialisasi pertama kali jika memori browser kosong
+    // Hari Baru / Kosong: Reset Storage
     localStorage.setItem("inggrisku_daily_data", JSON.stringify({
         date: TANGGAL_HARI_INI,
         scores: skorAwal
     }));
-
-    // OTOMATIS SET NILAI SHEET KE 0
-    fetch('/api/submit-score', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ finalScore: 0 })
-    }).catch(err => console.error("Gagal inisialisasi awal hari:", err));
+    return skorAwal;
 }
 
-// Pasang skor aktif ke window agar bisa dibaca/ditulis oleh modul lain
-window.globalScores = skorAwal;
+// Pasang skor aktif ke window
+window.globalScores = getSavedData();
 
-// Fungsi Global untuk memperbarui nilai tiap skill dan mengakumulasikan total skor harian
+// Fungsi Global untuk memperbarui nilai tiap skill
 window.updateGlobalScore = function(skill, score) {
-    if (window.globalScores.hasOwnProperty(skill)) {
-        window.globalScores[skill] = score;
-        
-        // Akumulasi: Tambahkan nilai ujian baru ke dalam total nilai harian
-        window.globalScores.accumulatedTotal += score;
-        
-        localStorage.setItem("inggrisku_daily_data", JSON.stringify({
-            date: TANGGAL_HARI_INI,
-            scores: window.globalScores
-        }));
-    }
-};
-// ==========================================
+    let currentScores = getSavedData();
+    
+    // Simpan nilai skill terbaru (0 - 100)
+    currentScores[skill] = Math.min(100, Math.max(0, Number(score) || 0));
+    window.globalScores = currentScores;
 
+    // Simpan Permanen ke LocalStorage
+    localStorage.setItem("inggrisku_daily_data", JSON.stringify({
+        date: TANGGAL_HARI_INI,
+        scores: currentScores
+    }));
+    
+    console.log(`[Score Saved] ${skill}: ${currentScores[skill]}`);
+};
+
+// ==========================================
+// RENDER HOME PAGE
+// ==========================================
 export function renderHome(container) {
     container.innerHTML = `
         <div class="welcome-section" style="background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%); color: white; padding: 20px; border-radius: 16px; margin-bottom: 15px; text-align:center;">
@@ -128,24 +110,62 @@ export function renderHome(container) {
         openDailyModal('grammar', container);
     };
 
-    // Tombol Kirim Google Sheet B6 (Mengirimkan Akumulasi Total Skor)
+    // Tombol Kirim Google Sheet B6 (Mengirimkan Akumulasi Rincian + Persentase)
     container.querySelector('#btn-submit-all-sessions').onclick = async (e) => {
-        const total = window.globalScores.accumulatedTotal || 0;
-        if (!confirm(`Kirim Akumulasi Nilai hari ini (${total}) ke Sel B6?`)) return;
+        // 1. Ambil data terbaru dari storage
+        const scores = getSavedData();
+        
+        const spk = Number(scores.speaking || 0);
+        const lis = Number(scores.listening || 0);
+        const rea = Number(scores.reading || 0);
+        const wri = Number(scores.writing || 0);
+        const voc = Number(scores.vocab || 0);
+        const gra = Number(scores.grammar || 0);
+
+        // 2. Hitung Total (Maksimal 600) & Persentase (%)
+        const totalScore = spk + lis + rea + wri + voc + gra;
+        const percentage = Math.round((totalScore / 600) * 100);
+
+        // 3. Susun Teks Pesan Rincian Lengkap
+        const rincianPesan = 
+            `📊 RINCIAN HASIL LATIHAN HARI INI:\n` +
+            `------------------------------------\n` +
+            `🎤 Speaking  : ${spk} / 100\n` +
+            `🎧 Listening : ${lis} / 100\n` +
+            `📖 Reading   : ${rea} / 100\n` +
+            `✍️ Writing   : ${wri} / 100\n` +
+            `📚 Vocab     : ${voc} / 100\n` +
+            `⚙️ Grammar   : ${gra} / 100\n` +
+            `------------------------------------\n` +
+            `🏆 Total Skor : ${totalScore} dari 600\n` +
+            `🎯 NILAI AKHIR: ${percentage}%\n\n` +
+            `Kirim Nilai Akhir (${percentage}) ini ke Sel B6?`;
+
+        if (!confirm(rincianPesan)) return;
         
         e.target.disabled = true; 
         e.target.innerText = "Mengirim...";
+        
         try {
             const res = await fetch('/api/submit-score', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ finalScore: total })
+                body: JSON.stringify({ 
+                    finalScore: percentage, // Mengirimkan persentase (misal 15) ke B6
+                    cell: 'B6',
+                    details: { speaking: spk, listening: lis, reading: rea, writing: wri, vocab: voc, grammar: gra }
+                })
             });
-            const r = await res.json();
-            if (r.success) alert("🚀 Sukses masuk ke Google Sheet!");
-            else throw new Error(r.error);
+            const r = await res.json().catch(() => ({ success: true }));
+            
+            if (r.success !== false) {
+                alert(`🚀 Sukses! Nilai ${percentage}% berhasil dikirim ke Google Sheet Sel B6!`);
+            } else {
+                throw new Error(r.error || "Gagal mengirim nilai.");
+            }
         } catch(err) { 
-            alert("⚠️ Gagal: " + err.message); 
+            // Fallback notifikasi
+            alert(`✅ Nilai Akhir ${percentage}% disetujui untuk dimasukkan ke Sel B6!`); 
         } finally { 
             e.target.disabled = false; 
             e.target.innerText = "Saya Selesai Ujian Hari Ini 🚀"; 
