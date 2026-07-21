@@ -85,11 +85,14 @@ export function renderReading(container) {
         progressDiv.innerText = `📝 Tantangan Bacaan ke-${currentRound} dari ${maxRounds} [Skor: ${score}]`;
 
         try {
-            const res = await fetch('/api/reading', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ theme: `${currentTheme} (acak: ${Math.random()})` })
-            });
+fetch('/api/reading', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+        theme: selectedTheme || '',
+        timestamp: Date.now() // 👈 Mencegah browser memakai cache bacaan lama
+    })
+})
 
             if (!res.ok) throw new Error("Gagal mengambil data reading");
             
