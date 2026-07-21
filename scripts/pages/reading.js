@@ -85,21 +85,27 @@ export function renderReading(container) {
         progressDiv.innerText = `📝 Tantangan Bacaan ke-${currentRound} dari ${maxRounds} [Skor: ${score}]`;
 
         try {
-fetch('/api/reading', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-        theme: selectedTheme || '',
-        timestamp: Date.now() // 👈 Mencegah browser memakai cache bacaan lama
-    })
-})
+            // PERBAIKAN DI SINI: Menyimpan hasil fetch ke variabel 'res' dan menggunakan variabel 'currentTheme'
+            const res = await fetch('/api/reading', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    theme: currentTheme || '',
+                    timestamp: Date.now()
+                })
+            });
 
             if (!res.ok) throw new Error("Gagal mengambil data reading");
             
             let rawText = await res.text();
             rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-            rawText = rawText.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
-            rawText = rawText.replace(/{\\n/g, '{').replace(/\\n}/g, '}').replace(/,\\n/g, ',');
+            
+            // Pembersihan JSON yang aman
+            const firstOpen = rawText.indexOf('{');
+            const lastClose = rawText.lastIndexOf('}');
+            if (firstOpen !== -1 && lastClose !== -1) {
+                rawText = rawText.substring(firstOpen, lastClose + 1);
+            }
             
             const data = JSON.parse(rawText);
             
@@ -110,7 +116,7 @@ fetch('/api/reading', {
             setupQuiz(data);
 
         } catch (err) {
-            console.error(err);
+            console.error("Error Reading Session:", err);
             loadingDiv.style.display = 'none';
             quizArticleBox.innerHTML = `
                 <p style="color:red; text-align:center;">Gagal menyusun modul reading. Mari kita coba buat ulang.</p>
