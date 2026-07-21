@@ -1,5 +1,4 @@
 export function renderListening(container) {
-    // Daftar Tema Sesuai Permintaan Anda
     const themes = [
         { id: 'islamic', label: '🕌 Islamic Studies' },
         { id: 'religion_kajian', label: '📖 Kajian Agama' },
@@ -11,7 +10,6 @@ export function renderListening(container) {
         { id: 'nature', label: '🌱 Sains & Alam' }
     ];
      
-    // Variabel state untuk melacak jumlah ronde/soal
     let currentRound = 0;
     const maxRounds = 10;
     let score = 0;
@@ -56,12 +54,11 @@ export function renderListening(container) {
     themeButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
             currentTheme = e.target.getAttribute('data-theme');
-            // Reset state kuis baru
             currentRound = 1;
             score = 0;
             
             themeSelector.style.display = 'none';
-            progressDiv.style.display = 'block'; // Diperbaiki dari typo (.style.style)
+            progressDiv.style.display = 'block';
             resultZone.style.display = 'none';
             
             loadNewQuestion();
@@ -74,13 +71,12 @@ export function renderListening(container) {
         loadingDiv.style.display = 'block';
         quizZone.innerHTML = '';
         
-        // Mematikan paksa suara sisa ronde sebelumnya jika masih berbicara
         if (window.speechSynthesis) {
             window.speechSynthesis.cancel();
         }
         
         progressDiv.style.display = 'block';
-        progressDiv.innerText = `📝 Pertanyaan ke-${currentRound} dari ${maxRounds} [Skor: ${score}]`;
+        progressDiv.innerText = `📝 Pertanyaan ke-${currentRound} dari ${maxRounds} [Benar: ${score}]`;
 
         try {
             const res = await fetch('/api/listening', {
@@ -91,21 +87,11 @@ export function renderListening(container) {
             
             if (!res.ok) throw new Error("Respons jaringan bermasalah.");
             
-            // Mengambil teks mentah terlebih dahulu untuk dibersihkan secara agresif
             let rawText = await res.text();
-            
-            // SISTEM KEBAL EROR: Pembersihan Teks JSON Kaku
             rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-            
-            // Hapus kemungkinan karakter enter mentah di dalam string JSON yang merusak parser
-            // Mengubah enter literal menjadi simbol string aman '\\n'
             rawText = rawText.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
-            
-            // Perbaikan ekstra jika string JSON terbungkus objek ganda
-            // Karena kita mengganti \n dengan \\n secara global, struktur kurung kurawal harus dinormalisasi kembali
             rawText = rawText.replace(/{\\n/g, '{').replace(/\\n}/g, '}').replace(/,\\n/g, ',');
             
-            // Mengurai JSON yang sudah bersih dengan aman
             const data = JSON.parse(rawText);
             
             loadingDiv.style.display = 'none';
@@ -113,11 +99,10 @@ export function renderListening(container) {
             
             setupListeningQuiz(data);
         } catch (err) {
-            console.error("Detail Eror Parsing:", err);
+            console.error("Detail Error Parsing:", err);
             loadingDiv.style.display = 'none';
             quizZone.innerHTML = `
-                <p style="color:#ea4335; text-align:center; font-weight:500;">⚠️ Gagal memproses data dari AI (Eror Format Ragam Cerita).</p>
-                <p style="color:var(--text-muted); text-align:center; font-size:0.85rem; margin-top:-10px;">Jangan khawatir, silakan klik tombol di bawah untuk meracik ulang soal baru secara otomatis.</p>
+                <p style="color:#ea4335; text-align:center; font-weight:500;">⚠️ Gagal memproses data dari AI.</p>
                 <button id="btn-retry-round" class="action-btn" style="margin:15px auto; display:block; background:#f4b400;">🔄 Coba Muat Ulang Soal</button>
             `;
             container.querySelector('#btn-retry-round').onclick = loadNewQuestion;
@@ -125,7 +110,6 @@ export function renderListening(container) {
     }
 
     function setupListeningQuiz(data) {
-        // Normalisasi teks audio (kembalikan string escape '\\n' menjadi spasi biasa untuk disuarakan)
         const cleanAudioText = (data.audioText || "").replace(/\\n/g, ' ').replace(/\\r/g, ' ');
         const cleanQuestion = (data.question || "").replace(/\\n/g, '<br>').replace(/\\r/g, '');
         const cleanExplanation = (data.explanation || "").replace(/\\n/g, '<br>').replace(/\\r/g, '');
@@ -156,8 +140,6 @@ export function renderListening(container) {
                 const expl = quizZone.querySelector('#listen-explanation');
                 
                 optButtons.forEach(b => b.disabled = true);
-                
-                // Normalisasi string jawaban benar untuk pencocokan presisi
                 const cleanCorrectAnswer = (data.answer || "").replace(/\\n/g, ' ').replace(/\\r/g, '').trim();
                 
                 if (selected.trim() === cleanCorrectAnswer) {
@@ -203,13 +185,18 @@ export function renderListening(container) {
             resultZone.style.display = 'block';
             
             const finalScore = Math.round((score / maxRounds) * 100);
+
+            // SIMPAN SKOR LISTENING KE SISTEM SKOR GLOBAL
+            if (window.updateGlobalScore) {
+                window.updateGlobalScore('listening', finalScore);
+            }
             
             resultZone.innerHTML = `
                 <div style="font-size: 4rem;">🏆</div>
-                <h3 style="margin: 15px 0; color: var(--primary-color);">Sesi Latihan Selesai!</h3>
+                <h3 style="margin: 15px 0; color: var(--primary-color);">Sesi Latihan Listening Selesai!</h3>
                 <p style="font-size: 1.2rem; margin-bottom: 10px;">Tema: <strong>${currentTheme}</strong></p>
                 <div class="score-badge" style="display:inline-block; font-size:1.5rem; padding: 10px 30px; margin-bottom: 25px;">
-                    Skor Anda: ${finalScore} / 100
+                    Skor Listening: ${finalScore} / 100
                 </div>
                 <p style="color: var(--text-muted); margin-bottom: 25px;">Anda menjawab benar ${score} dari ${maxRounds} soal.</p>
                 <button id="btn-restart-listening" class="action-btn" style="width:100%; max-width:400px;">🔄 Pilih Tema Lain</button>
