@@ -38,48 +38,65 @@ Respond with ONLY a raw valid JSON object (no markdown, no preamble):
   "explanation": "Brief explanation in Bahasa Indonesia"
 }`;
 
-    // 4. Panggil URL API Google Resmi (Menggunakan Model gemini-1.5-flash saja)
-    const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${activeKey}`;
+    // 4. Daftar Model Google yang dicoba bergantian (Auto-Detect)
+    const availableModels = [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro"
+    ];
 
-    try {
-        const response = await fetch(GEMINI_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    temperature: 0.7
-                }
-            })
-        });
+    let lastError = "";
 
-        if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            const msg = errData.error?.message || `HTTP ${response.status}`;
-            throw new Error(`Google API: ${msg}`);
+    // Loop mencoba satu per satu model sampai ada yang berhasil
+    for (const modelName of availableModels) {
+        try {
+            const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${activeKey}`;
+
+            const response = await fetch(GEMINI_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        temperature: 0.7
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                lastError = errData.error?.message || `HTTP ${response.status}`;
+                console.warn(`[Model ${modelName} Gagal]: ${lastError}`);
+                continue; // Lanjut mencoba model berikutnya
+            }
+
+            const data = await response.json();
+            let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (!rawText) continue;
+
+            // Pembersihan Teks JSON
+            rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+            const firstBrace = rawText.indexOf('{');
+            const lastBrace = rawText.lastIndexOf('}');
+            
+            if (firstBrace !== -1 && lastBrace !== -1) {
+                rawText = rawText.substring(firstBrace, lastBrace + 1);
+            }
+
+            const parsedObj = JSON.parse(rawText);
+            // Berhasil! Kirim respons ke frontend
+            return res.status(200).json(parsedObj);
+
+        } catch (err) {
+            lastError = err.message;
+            console.error(`[Exception ${modelName}]:`, err.message);
         }
-
-        const data = await response.json();
-        let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!rawText) throw new Error("Respons AI kosong.");
-
-        // Pembersihan Teks JSON
-        rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
-        const firstBrace = rawText.indexOf('{');
-        const lastBrace = rawText.lastIndexOf('}');
-        
-        if (firstBrace !== -1 && lastBrace !== -1) {
-            rawText = rawText.substring(firstBrace, lastBrace + 1);
-        }
-
-        const parsedObj = JSON.parse(rawText);
-        return res.status(200).json(parsedObj);
-
-    } catch (err) {
-        console.error("Listening Backend Error:", err.message);
-        return res.status(500).json({ 
-            error: `Gagal meracik soal dari AI (${err.message}). Silakan klik tombol lagi.` 
-        });
     }
+
+    // Jika semua model dalam list gagal
+    return res.status(500).json({ 
+        error: `Gagal meracik soal dari AI (${lastError}). Silakan klik tombol lagi.` 
+    });
 }
