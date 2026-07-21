@@ -104,7 +104,7 @@ export function renderSpeaking(container) {
         if (activityRatio > 1) activityRatio = 1; // Maksimal 100% dari rasio
 
         // 3. Skor Akhir = Hasil Waktu * Rasio Keaktifan
-        const finalScore = Math.round(baseScore * activityRatio);
+        const finalScore = data.overall || 80;
         return Math.min(100, Math.max(0, finalScore));
     }
 
