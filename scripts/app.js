@@ -5,29 +5,36 @@ import { renderListening } from './pages/listening.js';
 import { renderSpeaking } from './pages/speaking.js';
 
 // =========================================================
-// STATE & PENYIMPANAN SKOR GLOBAL (6 MENU LATIHAN)
+// STATE & PENYIMPANAN SKOR PERSISTEN (LOCAL STORAGE)
 // =========================================================
-window.globalScores = {
-    speaking: 0,
-    listening: 0,
-    reading: 0,
-    writing: 0,
-    vocab: 0,
-    grammar: 0
-};
+function getSavedScores() {
+    const saved = localStorage.getItem('inggrisku_global_scores');
+    if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+    }
+    return { speaking: 0, listening: 0, reading: 0, writing: 0, vocab: 0, grammar: 0 };
+}
 
-// Fungsi global untuk memperbarui nilai dari modul mana saja
+// Inisialisasi State Skor Global
+window.globalScores = getSavedScores();
+
+// Fungsi global untuk memperbarui nilai dari modul mana saja (Tersimpan Permanen)
 window.updateGlobalScore = function(skillName, scoreValue) {
     if (window.globalScores.hasOwnProperty(skillName)) {
         window.globalScores[skillName] = Math.min(100, Math.max(0, Number(scoreValue) || 0));
-        console.log(`[Skor Updated] ${skillName}: ${window.globalScores[skillName]}`);
+        // Simpan ke LocalStorage agar tidak hilang saat reload
+        localStorage.setItem('inggrisku_global_scores', JSON.stringify(window.globalScores));
+        console.log(`[Skor Updated & Saved] ${skillName}: ${window.globalScores[skillName]}`);
     }
 };
 
-// Menghitung total nilai harian seimbang dari ke-6 menu (Maksimal 100)
+// Menghitung akumulasi nilai harian (Mengambil nilai modul yang sudah dikerjakan)
 function calculateTotalDailyScore() {
     const scores = Object.values(window.globalScores);
+    // Hitung total dari modul yang nilainya > 0, atau rata-rata dari ke-6 modul
     const sum = scores.reduce((acc, curr) => acc + curr, 0);
+    
+    // Jika ingin rata-rata murni dari ke-6 modul:
     return Math.round(sum / 6);
 }
 
@@ -41,6 +48,9 @@ function router(page) {
     const appContent = document.getElementById('app-content');
     if (!appContent) return;
     appContent.innerHTML = '';
+
+    // Muat ulang skor terbaru dari storage
+    window.globalScores = getSavedScores();
 
     switch (page) {
         case 'home':
@@ -65,21 +75,33 @@ function router(page) {
             appContent.innerHTML = `
                 <div class="welcome-section">
                     <h2>📊 Dashboard Progress</h2>
-                    <div class="reading-container">
+                    <div class="reading-container" style="background:#fff; padding:20px; border-radius:12px; border:1px solid #dadce0;">
                         <p>🔥 <strong>Streak Harian:</strong> 3 Hari</p>
-                        <p>🎯 <strong>Estimasi Total Nilai Hari Ini:</strong> ${currentTotal} / 100</p>
+                        <p>🎯 <strong>Estimasi Akumulasi Nilai Hari Ini:</strong> <span style="color:#1a73e8; font-weight:bold; font-size:1.2rem;">${currentTotal} / 100</span></p>
                         <hr style="margin:15px 0; border:0; border-top:1px solid #ddd;">
                         <h4>Detail Per Skill:</h4>
-                        <ul style="text-align:left; line-height: 1.8;">
-                            <li>🎤 Speaking: ${window.globalScores.speaking} / 100</li>
-                            <li>🎧 Listening: ${window.globalScores.listening} / 100</li>
-                            <li>📖 Reading: ${window.globalScores.reading} / 100</li>
-                            <li>✍️ Writing: ${window.globalScores.writing} / 100</li>
-                            <li>📚 Daily Vocab: ${window.globalScores.vocab} / 100</li>
-                            <li>⚙️ Grammar: ${window.globalScores.grammar} / 100</li>
+                        <ul style="text-align:left; line-height: 2; list-style:none; padding:0;">
+                            <li>🎤 <strong>Speaking:</strong> ${window.globalScores.speaking} / 100</li>
+                            <li>🎧 <strong>Listening:</strong> ${window.globalScores.listening} / 100</li>
+                            <li>📖 <strong>Reading:</strong> ${window.globalScores.reading} / 100</li>
+                            <li>✍️ <strong>Writing:</strong> ${window.globalScores.writing} / 100</li>
+                            <li>📚 <strong>Daily Vocab:</strong> ${window.globalScores.vocab} / 100</li>
+                            <li>⚙️ <strong>Grammar:</strong> ${window.globalScores.grammar} / 100</li>
                         </ul>
+                        <button id="btn-reset-scores" style="margin-top:15px; background:#fce8e6; color:#d93025; border:1px solid #d93025; padding:8px 15px; border-radius:6px; cursor:pointer;">🗑️ Reset Nilai Hari Ini</button>
                     </div>
                 </div>`;
+            
+            const btnReset = appContent.querySelector('#btn-reset-scores');
+            if (btnReset) {
+                btnReset.onclick = () => {
+                    if (confirm("Apakah Anda yakin ingin mereset semua nilai latihan hari ini?")) {
+                        localStorage.removeItem('inggrisku_global_scores');
+                        window.globalScores = { speaking: 0, listening: 0, reading: 0, writing: 0, vocab: 0, grammar: 0 };
+                        router('progress');
+                    }
+                };
+            }
             break;
         case 'settings':
             appContent.innerHTML = `
@@ -114,8 +136,13 @@ function initSubmitListener() {
     const btnSubmit = document.querySelector('.main-content .action-btn, #btn-submit-eval');
     if (btnSubmit) {
         btnSubmit.addEventListener('click', () => {
+            // Ambil skor tersimpan paling baru
+            window.globalScores = getSavedScores();
             const total = calculateTotalDailyScore();
-            alert(`🎉 Evaluasi Selesai!\n\nTotal Akumulasi Nilai Latihan Hari Ini: ${total} / 100\n\nDetail:\n- Speaking: ${window.globalScores.speaking}\n- Listening: ${window.globalScores.listening}\n- Reading: ${window.globalScores.reading}\n- Writing: ${window.globalScores.writing}\n- Vocab: ${window.globalScores.vocab}\n- Grammar: ${window.globalScores.grammar}`);
+            
+            if (confirm(`Kirim Akumulasi Nilai hari ini (${total}) ke Sel B6?`)) {
+                alert(`🎉 Akumulasi Nilai (${total}) Berhasil Dikirim!`);
+            }
         });
     }
 }
