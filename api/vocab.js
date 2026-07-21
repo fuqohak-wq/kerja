@@ -14,7 +14,6 @@ export default async function handler(req, res) {
 
     const { action, currentMaterial } = req.body || {};
     
-    // KUNCI PERUBAHAN: Sisipkan kata kunci acak & timestamp agar AI selalu membuat kosakata baru!
     const randomThemes = ["Technology", "Emotion & Feelings", "Nature & Environment", "Cooking & Food", "Travel & Adventure", "Business & Finance", "Art & Music", "Health & Fitness", "Social Media", "Science"];
     const pickedTheme = randomThemes[Math.floor(Math.random() * randomThemes.length)];
     const seed = Date.now() + "_" + Math.random();
@@ -22,21 +21,21 @@ export default async function handler(req, res) {
     let prompt = "";
 
     if (action === 'get-quizzes') {
-        prompt = `Based on this vocabulary material: ${JSON.stringify(currentMaterial || {})}, generate EXACTLY 5 unique multiple choice quiz questions (Seed: ${seed}).
+        // PERINTAH KETAT: Minta AI membuat 5 soal berdasarkan KATA YANG ADA pada currentMaterial saja!
+        prompt = `You are a quiz generator. Based STRICTLY on this vocabulary material provided: ${JSON.stringify(currentMaterial || {})}, generate EXACTLY 5 multiple-choice quiz questions to test comprehension of THESE EXACT WORDS.
 Output MUST be strictly in valid JSON format matching this structure:
 {
   "quizzes": [
     {
-      "question": "Question about word meaning or context in English?",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "question": "Question testing one of the words above in English?",
+      "options": ["Correct Meaning/Answer", "Wrong Option 1", "Wrong Option 2", "Wrong Option 3"],
       "answer": "Exact matching string of correct option",
-      "explanation": "Penjelasan singkat mengapa jawaban ini benar dalam Bahasa Indonesia."
+      "explanation": "Brief explanation in Bahasa Indonesia."
     }
   ]
 }`;
     } else {
-        // Minta 5 Vocabulary baru dengan Tema Acak
-        prompt = `Generate 5 fresh and diverse English vocabulary words related to the theme "${pickedTheme}" for English learners (Seed: ${seed}).
+        prompt = `Generate 5 fresh English vocabulary words related to the theme "${pickedTheme}" for English learners (Seed: ${seed}).
 Output MUST be strictly a valid JSON array matching this structure:
 [
   {
@@ -81,8 +80,7 @@ Output MUST be strictly a valid JSON array matching this structure:
                 rawText = rawText.substring(firstOpen, lastClose + 1);
             }
 
-            const parsed = JSON.parse(rawText);
-            return res.status(200).json(parsed);
+            return res.status(200).json(JSON.parse(rawText));
 
         } catch (err) {
             lastError = err.message;
@@ -90,57 +88,41 @@ Output MUST be strictly a valid JSON array matching this structure:
         }
     }
 
-    console.error("Error Vocab API (Pindah ke dynamic fallback):", lastError);
+    console.error("Error Vocab API (Menggunakan fallback cerdas yang sinkron):", lastError);
 
-    // ==========================================
-    // FALLBACK BERVARIASI (Agar tidak sama saat API error)
-    // ==========================================
+    // =========================================================================
+    // FALLBACK CERDAS: Jika AI Error, Buat Soal Kuis LANGSUNG DARI Kata yang Ditampilkan!
+    // =========================================================================
     if (action === 'get-quizzes') {
-        const quizSets = [
-            [
-                { question: "Apa arti dari kata 'Resilient'?", options: ["Tangguh / Ulet", "Lemah", "Mudah Menyerah", "Ragu-ragu"], answer: "Tangguh / Ulet", explanation: "Resilient berarti memiliki kemampuan untuk bangkit kembali dari kesulitan." },
-                { question: "Manakah contoh penggunaan 'Innovate' yang tepat?", options: ["We need to innovate our products.", "She innovate to sleep.", "They innovate apple.", "He is innovate yesterday."], answer: "We need to innovate our products.", explanation: "Innovate adalah kata kerja yang berarti menciptakan perubahan atau pembaruan." },
-                { question: "Sinonim dari kata 'Abundant' adalah...", options: ["Plentiful (Melimpah)", "Scarce (Langka)", "Tiny", "Empty"], answer: "Plentiful (Melimpah)", explanation: "Abundant bermakna tersedia dalam jumlah yang sangat banyak." },
-                { question: "Apa arti dari kata 'Meticulous'?", options: ["Sangat teliti", "Ceroboh", "Lambat", "Pengancam"], answer: "Sangat teliti", explanation: "Meticulous berarti sangat memperhatikan detail kecil secara cermat." },
-                { question: "Pilih kata yang tepat: 'His speech was very _____.'", options: ["Inspiring", "Inspire", "Inspiration", "Inspiredly"], answer: "Inspiring", explanation: "Kata sifat (adjective) 'Inspiring' tepat untuk menerangkan pidato (speech)." }
-            ],
-            [
-                { question: "Apa arti dari kata 'Persist'?", options: ["Gigih / Bertahan", "Berhenti", "Lari", "Menolak"], answer: "Gigih / Bertahan", explanation: "Persist artinya terus melanjutkan usaha meskipun ada kendala." },
-                { question: "Apa arti dari 'Fascinating'?", options: ["Sangat menarik", "Membosankan", "Menakutkan", "Biasa saja"], answer: "Sangat menarik", explanation: "Fascinating digunakan untuk menggambarkan sesuatu yang sangat memikat perhatian." },
-                { question: "Pilih kata yang benar: 'They made a huge _____.'", options: ["Discovery", "Discover", "Discovering", "Discovered"], answer: "Discovery", explanation: "Discovery (kata benda) berarti penemuan." },
-                { question: "Lawan kata dari 'Versatile' (serba bisa) adalah...", options: ["Limited", "Flexible", "Adaptable", "Talented"], answer: "Limited", explanation: "Versatile berarti luwes/multi-bisa, lawan katanya terbatas (limited)." },
-                { question: "Apa arti kata 'Empathy'?", options: ["Empati / Rasa peduli", "Kemarahan", "Iri hati", "Ketakutan"], answer: "Empathy", explanation: "Empathy adalah kemampuan memahami perasaan orang lain." }
-            ]
-        ];
-        const randomQuizSet = quizSets[Math.floor(Math.random() * quizSets.length)];
-        return res.status(200).json({ quizzes: randomQuizSet });
+        const wordsList = Array.isArray(currentMaterial) ? currentMaterial : (currentMaterial?.words || []);
+        
+        if (wordsList.length > 0) {
+            const smartQuizzes = wordsList.slice(0, 5).map((w) => ({
+                question: `Apa arti dari kata '${w.word}'?`,
+                options: [
+                    w.meaning,
+                    "Tidakan menunda sesuatu",
+                    "Kondisi tidak stabil",
+                    "Proses secara bertahap"
+                ].sort(() => Math.random() - 0.5), // Acak pilihan jawaban
+                answer: w.meaning,
+                explanation: `'${w.word}' artinya "${w.meaning}". Contoh: "${w.example || ''}"`
+            }));
+            
+            return res.status(200).json({ quizzes: smartQuizzes });
+        }
     }
 
-    // Paket Kosakata Cadangan yang Bervariasi
-    const materialSets = [
-        [
-            { theme: "Technology", word: "Algorithm", meaning: "Algoritma / Langkah logis", example: "The social media algorithm shows content you like." },
-            { theme: "Technology", word: "Bandwidth", meaning: "Kapasitas transfer data", example: "Video streaming requires high bandwidth." },
-            { theme: "Technology", word: "Encrypted", meaning: "Tersandi / Terlindungi", example: "Your messages are end-to-end encrypted." },
-            { theme: "Technology", word: "Interface", meaning: "Antarmuka tampilan", example: "The app has a user-friendly interface." },
-            { theme: "Technology", word: "Optimize", meaning: "Optimalkan / Maksimalkan", example: "We need to optimize the system speed." }
-        ],
+    // Paket Kosakata Cadangan Jika Panggilan Awal Gagal Total
+    const fallbackMaterials = [
         [
             { theme: "Emotions", word: "Ecstatic", meaning: "Sangat gembira / Sangat senang", example: "She was ecstatic when she passed the exam." },
             { theme: "Emotions", word: "Apprehensive", meaning: "Cemas / Khawatir", example: "He felt apprehensive before the job interview." },
             { theme: "Emotions", word: "Compassionate", meaning: "Penuh kasih sayang / Empati", example: "A good leader is always compassionate." },
             { theme: "Emotions", word: "Overwhelmed", meaning: "Kewalahan / Terlalu banyak beban", example: "Don't feel overwhelmed by your big goals." },
             { theme: "Emotions", word: "Serene", meaning: "Tenang / Damai", example: "The lake looked beautiful and serene in the morning." }
-        ],
-        [
-            { theme: "Travel", word: "Itinerary", meaning: "Rencana perjalanan / Jadwal tur", example: "Check our travel itinerary for tomorrow." },
-            { theme: "Travel", word: "Destination", meaning: "Destinasi / Tempat tujuan", example: "Bali is a popular vacation destination." },
-            { theme: "Travel", word: "Accommodation", meaning: "Akomodasi / Penginapan", example: "Hotel accommodation is included in the price." },
-            { theme: "Travel", word: "Picturesque", meaning: "Indah seperti lukisan", example: "We visited a picturesque mountain village." },
-            { theme: "Travel", word: "Hospitality", meaning: "Keramahan layanan", example: "Indonesian people are famous for their hospitality." }
         ]
     ];
 
-    const randomMaterialSet = materialSets[Math.floor(Math.random() * materialSets.length)];
-    return res.status(200).json(randomMaterialSet);
+    return res.status(200).json(fallbackMaterials[0]);
 }
