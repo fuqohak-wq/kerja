@@ -3,13 +3,8 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Metode tidak diizinkan.' });
-    }
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Metode tidak diizinkan.' });
 
     const keys = [
         process.env.GEMINI_KEY_1,
@@ -24,11 +19,9 @@ export default async function handler(req, res) {
     }
 
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
-    
-    // Daftar model prioritas (jika 2.5 sibuk, otomatis pindah ke 1.5)
     const models = ["gemini-2.5-flash", "gemini-1.5-flash"];
 
-    const { action, type, currentMaterial } = req.body;
+    const { action, type, currentMaterial } = req.body || {};
     let prompt = "";
 
     if (action === 'get-material-bulk') {
@@ -54,7 +47,7 @@ export default async function handler(req, res) {
             Output MUST be a valid JSON array of objects without any markdown wrappers or text outside JSON.`;
         }
     } else if (action === 'get-quizzes') {
-        prompt = `Based on this learning material: ${JSON.stringify(currentMaterial)}, generate exactly 5 multiple choice quiz questions to test comprehension.
+        prompt = `Based on this learning material: ${JSON.stringify(currentMaterial || {})}, generate exactly 5 multiple choice quiz questions to test comprehension.
         The output MUST be in strict JSON format using this exact structure:
         {
           "quizzes": [
@@ -73,9 +66,8 @@ export default async function handler(req, res) {
 
     let lastError = null;
 
-    // Coba hubungi Gemini bergantian antar model jika gagal
     for (const modelName of models) {
-        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${activeKey}`;
+        const GEMINI_API_URL = `[https://generativelanguage.googleapis.com/v1beta/models/$](https://generativelanguage.googleapis.com/v1beta/models/$){modelName}:generateContent?key=${activeKey}`;
 
         try {
             const response = await fetch(GEMINI_API_URL, {
@@ -105,11 +97,10 @@ export default async function handler(req, res) {
 
         } catch (err) {
             lastError = err.message;
-            console.warn(`Model ${modelName} gagal, mencoba model berikutnya... Error:`, err.message);
+            console.warn(`Daily API (${modelName}) warning:`, err.message);
         }
     }
 
-    // Jika semua model gagal
     console.error("Semua model Gemini gagal di /api/daily:", lastError);
     return res.status(500).json({ error: `Gagal memproses harian: ${lastError}` });
 }
