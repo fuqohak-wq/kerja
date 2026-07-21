@@ -1,29 +1,23 @@
-// FUNGSI UTAMA PENGAMBIL MATERI BERBASIS CACHE 24 JAM
+// FUNGSI UTAMA PENGAMBIL MATERI (TETAP FRESH SETIAP REFRESH)
 async function getOrFetchBulkMaterial(type) {
-    const cacheKey = `bulk_${type}_data`;
-    const cacheTimeKey = `bulk_${type}_timestamp`;
-    const cachedData = localStorage.getItem(cacheKey);
-    const cachedTime = localStorage.getItem(cacheTimeKey);
-    
-    const oneDay = 24 * 60 * 60 * 1000;
-    
-    if (cachedData && cachedTime && (Date.now() - cachedTime < oneDay)) {
-        const list = JSON.parse(cachedData);
-        return list[Math.floor(Math.random() * list.length)];
-    }
-
-    // Endpoint diarahkan secara spesifik ke /api/vocab atau /api/grammar
+    // Dipanggil langsung ke backend tanpa mengendap di cache 24 jam
     const res = await fetch(`/api/${type}`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ action: 'get-material-bulk' })
+        body: JSON.stringify({ 
+            action: 'get-material-bulk',
+            timestamp: Date.now() // Mencegah caching oleh browser
+        })
     });
+    
     const freshBulkData = await res.json();
     
-    localStorage.setItem(cacheKey, JSON.stringify(freshBulkData));
-    localStorage.setItem(cacheTimeKey, Date.now().toString());
-    
-    return freshBulkData[Math.floor(Math.random() * freshBulkData.length)];
+    // Jika balasan berupa Array (misal: 5 kata vocab atau 5 topik grammar)
+    if (Array.isArray(freshBulkData)) {
+        return freshBulkData;
+    } 
+    // Jika balasan berupa Objek tunggal
+    return freshBulkData;
 }
 
 // FUNGSI UTAMA MEMBUKA MODAL DAN MENJALANKAN KUIS
@@ -38,26 +32,41 @@ export async function openDailyModal(type, container) {
         closeModalBtn.onclick = () => { dailyModal.style.display = 'none'; };
     }
 
-    modalBody.innerHTML = `<div style="text-align:center; padding:20px;">⏳ Memuat materi teracak dari arsip harian...</div>`;
+    modalBody.innerHTML = `<div style="text-align:center; padding:20px;">⏳ Memuat materi teracak dari AI Harian...</div>`;
     dailyModal.style.display = 'flex';
 
     try {
         const material = await getOrFetchBulkMaterial(type);
 
         if (type === 'vocab') {
-            let html = `<h3 style="margin-top:0; color:#1a73e8;">📚 Tema Acak: ${material.theme}</h3><ol style="padding-left:20px; text-align:left; font-size:0.95rem;">`;
-            material.words.forEach(w => {
+            // Ambil daftar kata (bisa langsung array atau di dalam property words/vocabList)
+            const wordsList = Array.isArray(material) ? material : (material.words || [material]);
+            const themeTitle = material.theme || (wordsList[0] && wordsList[0].theme) || 'Daily Vocab';
+
+            let html = `<h3 style="margin-top:0; color:#1a73e8;">📚 Tema: ${themeTitle}</h3><ol style="padding-left:20px; text-align:left; font-size:0.95rem;">`;
+            
+            wordsList.forEach(w => {
                 html += `<li style="margin-bottom:8px;"><strong>${w.word}</strong>: ${w.meaning}<br><small style="color:gray;">Ex: <em>${w.example}</em></small></li>`;
             });
+            
             html += `</ol><hr style="margin:15px 0;"><div id="quiz-loading-area" style="text-align:center; color:gray;">⏳ AI sedang meramu soal evaluasi...</div>`;
             modalBody.innerHTML = html;
         } else {
-            let html = `
-                <h3 style="margin-top:0; color:#137333;">⚙️ Topik: ${material.topic}</h3>
-                <div style="background:#f4faf6; padding:12px; border-radius:8px; text-align:left; border-left:4px solid #34a853; margin-bottom:12px; color:#137333;">${material.explanation}</div>
-                <p style="text-align:left;"><strong>Pola Kalimat:</strong> <code style="background:#eee; padding:4px 8px; display:block; margin-top:3px;">${material.formula}</code></p>
-                <hr style="margin:15px 0;"><div id="quiz-loading-area" style="text-align:center; color:gray;">⏳ Menyiapkan kuis penguji...</div>
-            `;
+            // Untuk Grammar
+            const grammarList = Array.isArray(material) ? material : [material];
+            let html = `<h3 style="margin-top:0; color:#137333;">⚙️ Topik Grammar Harian</h3><div style="text-align:left;">`;
+
+            grammarList.forEach((g, idx) => {
+                html += `
+                    <div style="background:#f4faf6; padding:10px 12px; border-radius:8px; border-left:4px solid #34a853; margin-bottom:10px; color:#137333;">
+                        <strong>${idx + 1}. ${g.topic || g.title}</strong>
+                        <p style="margin:4px 0; font-size:0.9rem;">${g.explanation}</p>
+                        <small><strong>Pola:</strong> <code>${g.formula}</code></small>
+                    </div>
+                `;
+            });
+
+            html += `</div><hr style="margin:15px 0;"><div id="quiz-loading-area" style="text-align:center; color:gray;">⏳ Menyiapkan kuis penguji...</div>`;
             modalBody.innerHTML = html;
         }
 
@@ -65,20 +74,31 @@ export async function openDailyModal(type, container) {
         const quizRes = await fetch(`/api/${type}`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ action: 'get-quizzes', currentMaterial: material })
+            body: JSON.stringify({ action: 'get-quizzes', currentMaterial: material, timestamp: Date.now() })
         });
-        const quizData = await quizRes.json();
         
-        modalBody.querySelector('#quiz-loading-area').outerHTML = `<div id="quiz-container-area"></div>`;
-        renderMiniQuizSystem(quizData.quizzes, type, modalBody.querySelector('#quiz-container-area'));
+        const quizData = await quizRes.json();
+        const quizzes = quizData.quizzes || (Array.isArray(quizData) ? quizData : []);
+
+        const loadingArea = modalBody.querySelector('#quiz-loading-area');
+        if (loadingArea) {
+            loadingArea.outerHTML = `<div id="quiz-container-area"></div>`;
+            renderMiniQuizSystem(quizzes, type, modalBody.querySelector('#quiz-container-area'));
+        }
 
     } catch (err) {
+        console.error("Error modal:", err);
         modalBody.innerHTML = `<p style="color:red; text-align:center;">⚠️ Gagal memuat materi harian. Silakan coba lagi.</p>`;
     }
 }
 
 // SISTEM MINI KUIS INTERAKTIF
 function renderMiniQuizSystem(quizzes, scoreKey, targetContainer) {
+    if (!quizzes || quizzes.length === 0) {
+        targetContainer.innerHTML = `<p style="color:gray; text-align:center;">Gagal meramu kuis harian.</p>`;
+        return;
+    }
+
     let currentIndex = 0; 
     let correctCount = 0;
 
@@ -86,7 +106,7 @@ function renderMiniQuizSystem(quizzes, scoreKey, targetContainer) {
         const q = quizzes[currentIndex];
         targetContainer.innerHTML = `
             <div style="text-align:left; background:#fafafa; padding:15px; border-radius:10px; border:1px solid #eaeaea; margin-top:10px;">
-                <p style="font-size:0.8rem; color:gray; font-weight:bold; margin:0 0 5px 0;">🎯 Soal (${currentIndex+1}/5)</p>
+                <p style="font-size:0.8rem; color:gray; font-weight:bold; margin:0 0 5px 0;">🎯 Soal (${currentIndex+1}/${quizzes.length})</p>
                 <p style="margin:0 0 12px 0; font-weight:bold;">${q.question}</p>
                 <div style="display:flex; flex-direction:column; gap:8px;">
                     ${q.options.map(o => `<button class="opt-b" data-v="${o}" style="text-align:left; padding:10px; background:#fff; border:1px solid #ddd; border-radius:8px; cursor:pointer;">${o}</button>`).join('')}
@@ -105,10 +125,10 @@ function renderMiniQuizSystem(quizzes, scoreKey, targetContainer) {
                 if(sel === q.answer) {
                     correctCount++;
                     e.target.style.background = '#e6f4ea';
-                    targetContainer.querySelector('#expl-area').innerHTML = `<div style="color:#137333; font-size:0.85rem;">🎉 <strong>Benar!</strong> ${q.explanation}</div>`;
+                    targetContainer.querySelector('#expl-area').innerHTML = `<div style="color:#137333; font-size:0.85rem;">🎉 <strong>Benar!</strong> ${q.explanation || ''}</div>`;
                 } else {
                     e.target.style.background = '#fce8e6';
-                    targetContainer.querySelector('#expl-area').innerHTML = `<div style="color:#c5221f; font-size:0.85rem;">❌ <strong>Salah.</strong> Jawaban: ${q.answer}. ${q.explanation}</div>`;
+                    targetContainer.querySelector('#expl-area').innerHTML = `<div style="color:#c5221f; font-size:0.85rem;">❌ <strong>Salah.</strong> Jawaban: ${q.answer}. ${q.explanation || ''}</div>`;
                 }
                 targetContainer.querySelector('#next-b').style.display = 'block';
             };
@@ -120,7 +140,9 @@ function renderMiniQuizSystem(quizzes, scoreKey, targetContainer) {
                 show(); 
             } else {
                 const finalSc = Math.round((correctCount / quizzes.length) * 100);
-                window.globalScores[scoreKey] = finalSc;
+                if (window.updateGlobalScore) {
+                    window.updateGlobalScore(scoreKey, finalSc);
+                }
                 targetContainer.innerHTML = `<div style="text-align:center; padding:15px; background:#e8f0fe; border-radius:12px; margin-top:10px; font-weight:bold; color:#1a73e8;">Sesi Selesai! Nilai Tersimpan: ${finalSc}</div>`;
             }
         };
