@@ -12,24 +12,22 @@ export default async function handler(req, res) {
         process.env.GEMINI_KEY_3
     ].filter(Boolean);
 
+    if (keys.length === 0) {
+        return res.status(500).json({ error: "API Key tidak ditemukan di environment variables." });
+    }
+
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
-    const models = ["gemini-2.5-flash", "gemini-1.5-flash"];
+    // Gunakan gemini-1.5-flash sebagai prioritas utama karena sangat stabil untuk obrolan/chat
+    const models = ["gemini-1.5-flash", "gemini-2.5-flash"];
 
     const { message, history, roleplay, isFinalReport } = req.body || {};
-    const currentMessage = String(message || "Hello").trim();
+    const currentMessage = String(message || "").trim();
     const cleanRoleplay = String(roleplay || "English Partner").trim();
 
     // ==========================================
-    // JALUR 1: RAPOR EVALUASI AKHIR CHAT
+    // JALUR 1: RAPOR EVALUASI AKHIR
     // ==========================================
     if (isFinalReport) {
-        if (!activeKey) {
-            return res.status(200).json({
-                overall: 80, fluency: 80, grammar: 80, pronunciation: 80, vocabulary: 80,
-                mistakes: [{ user: "No conversation history found.", correct: "Start a conversation to get evaluation.", explanation: "Simulasi offline." }]
-            });
-        }
-
         const formattedHistory = (history || []).map(h => `${h.role === 'user' ? 'Student' : 'Tutor'}: "${h.text}"`).join('\n');
 
         const systemInstruction = `You are an expert English teacher evaluating a student's conversation.
@@ -43,16 +41,15 @@ The JSON object must strictly match this structure:
   "vocabulary": 80,
   "mistakes": [
     {
-      "user": "<the incorrect sentence spoken by the student>",
-      "correct": "<the corrected version of that sentence>",
-      "explanation": "<brief, helpful explanation in Indonesian language>"
+      "user": "<incorrect sentence>",
+      "correct": "<corrected sentence>",
+      "explanation": "<explanation in Indonesian>"
     }
   ]
-}
-Ensure that you return ONLY raw JSON. If the student made no mistakes, return an empty "mistakes" array.`;
+}`;
 
         for (const modelName of models) {
-            const GEMINI_API_URL = `[https://generativelanguage.googleapis.com/v1beta/models/$](https://generativelanguage.googleapis.com/v1beta/models/$){modelName}:generateContent?key=${activeKey}`;
+            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${activeKey}`;
             try {
                 const response = await fetch(GEMINI_API_URL, {
                     method: 'POST',
@@ -63,19 +60,14 @@ Ensure that you return ONLY raw JSON. If the student made no mistakes, return an
                             parts: [{ text: `Evaluate this conversation:\n\n${formattedHistory}` }]
                         }],
                         systemInstruction: { parts: [{ text: systemInstruction }] },
-                        generationConfig: {
-                            temperature: 0.2,
-                            responseMimeType: "application/json"
-                        }
+                        generationConfig: { responseMimeType: "application/json" }
                     })
                 });
 
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-                        const replyJson = JSON.parse(data.candidates[0].content.parts[0].text);
-                        return res.status(200).json(replyJson);
-                    }
+                    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (text) return res.status(200).json(JSON.parse(text));
                 }
             } catch (err) {
                 console.warn(`Chat Report Error (${modelName}):`, err.message);
@@ -83,85 +75,84 @@ Ensure that you return ONLY raw JSON. If the student made no mistakes, return an
         }
 
         return res.status(200).json({
-            overall: 80, fluency: 85, grammar: 80, pronunciation: 80, vocabulary: 85,
-            mistakes: [{
-                user: "I study English yesterday.",
-                correct: "I studied English yesterday.",
-                explanation: "Gunakan verb 2 (past tense) untuk menceritakan kegiatan yang telah selesai di masa lampau."
-            }]
+            overall: 80, fluency: 80, grammar: 80, pronunciation: 80, vocabulary: 80,
+            mistakes: []
         });
     }
 
     // ==========================================
-    // JALUR 2: JALUR CHAT / SPEAKING INTERAKTIF
+    // JALUR 2: DIALOG INTERAKTIF REAL-TIME
     // ==========================================
-    if (keys.length > 0) {
-        let chatContents = [];
+    if (!currentMessage) {
+        return res.status(400).json({ error: "Pesan tidak boleh kosong." });
+    }
 
-        if (history && Array.isArray(history)) {
-            let lastAddedRole = null;
-            history.forEach(item => {
-                const normalizedRole = item.role === 'user' ? 'user' : 'model';
-                const textVal = String(item.text || "").trim();
+    let chatContents = [];
 
-                if (textVal && normalizedRole !== lastAddedRole) {
-                    chatContents.push({
-                        role: normalizedRole,
-                        parts: [{ text: textVal }]
-                    });
-                    lastAddedRole = normalizedRole;
-                }
-            });
-        }
-
-        while (chatContents.length > 0 && chatContents[0].role === 'model') {
-            chatContents.shift();
-        }
-
-        if (chatContents.length > 0 && chatContents[chatContents.length - 1].role === 'user') {
-            chatContents[chatContents.length - 1].parts = [{ text: currentMessage }];
-        } else {
-            chatContents.push({
-                role: 'user',
-                parts: [{ text: currentMessage }]
-            });
-        }
-
-        const systemInstruction = `You are roleplaying as a "${cleanRoleplay}" talking to an English student. Stay in character, keep your response realistic to your role, very natural, conversational, concise (1-2 sentences), and ask a relevant question to keep the conversation flowing in English.`;
-
-        for (const modelName of models) {
-            const GEMINI_API_URL = `[https://generativelanguage.googleapis.com/v1beta/models/$](https://generativelanguage.googleapis.com/v1beta/models/$){modelName}:generateContent?key=${activeKey}`;
-
-            try {
-                const response = await fetch(GEMINI_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: chatContents,
-                        systemInstruction: { parts: [{ text: systemInstruction }] },
-                        generationConfig: { temperature: 0.7 }
-                    })
+    // Olah Riwayat Obrolan
+    if (history && Array.isArray(history)) {
+        history.forEach(item => {
+            const normalizedRole = item.role === 'user' ? 'user' : 'model';
+            const textVal = String(item.text || "").trim();
+            if (textVal) {
+                chatContents.push({
+                    role: normalizedRole,
+                    parts: [{ text: textVal }]
                 });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-                        const replyText = data.candidates[0].content.parts[0].text;
-                        return res.status(200).json({ reply: replyText });
-                    }
-                }
-            } catch (err) {
-                console.warn(`Chat Error (${modelName}):`, err.message);
             }
+        });
+    }
+
+    // Tambahkan pesan user paling baru
+    chatContents.push({
+        role: 'user',
+        parts: [{ text: currentMessage }]
+    });
+
+    const systemPrompt = `You are roleplaying as a native English speaker acting as a "${cleanRoleplay}".
+Rules:
+1. Stay in character as a ${cleanRoleplay}.
+2. Keep your answers conversational, friendly, and brief (1-2 short sentences max).
+3. ALWAYS ask a quick follow-up question at the end to keep the phone call conversation going naturally.
+4. Reply ONLY in English.`;
+
+    let apiErrorDetail = "";
+
+    for (const modelName of models) {
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${activeKey}`;
+
+        try {
+            const response = await fetch(GEMINI_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: chatContents,
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    generationConfig: { temperature: 0.7 }
+                })
+            });
+
+            if (!response.ok) {
+                const errJson = await response.json();
+                throw new Error(errJson.error?.message || `HTTP status ${response.status}`);
+            }
+
+            const data = await response.json();
+            const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (replyText) {
+                // SANGAT PENTING: Mengembalikan balasan murni dari Gemini AI
+                return res.status(200).json({ reply: replyText });
+            }
+        } catch (err) {
+            apiErrorDetail = err.message;
+            console.error(`Gagal menggunakan ${modelName}:`, err.message);
         }
     }
 
-    const fallbackReplies = [
-        `That sounds very interesting! As your ${cleanRoleplay}, I'd love to hear more. Can you tell me more about it?`,
-        `Oh really? That is cool. How long have you been doing that?`,
-        `I completely agree with you. What do you think our next step should be?`,
-        `That makes sense! Could you explain that part to me once more in English?`
-    ];
-    
-    return res.status(200).json({ reply: fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)] });
+    // Jika Gemini API benar-benar error/gagal, kembalikan status error agar kamu tau di console (Bukan fallback pura-pura)
+    return res.status(500).json({ 
+        error: `Gagal terhubung ke AI Gemini: ${apiErrorDetail}`,
+        reply: "Sorry, I had trouble hearing you. Could you please repeat that?" 
+    });
 }
