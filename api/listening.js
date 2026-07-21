@@ -1,3 +1,5 @@
+import { GoogleGenAI } from "@google/genai";
+
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -6,7 +8,7 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Metode tidak diizinkan.' });
 
-    // Collect all available API keys
+    // 1. Ambil Semua API Key
     const keys = [
         process.env.GEMINI_KEY_1,
         process.env.GEMINI_KEY_2,
@@ -15,22 +17,21 @@ export default async function handler(req, res) {
     ].filter(Boolean);
 
     if (keys.length === 0) {
-        return res.status(500).json({ error: "API Key Gemini belum disetting di Vercel Environment Variables." });
+        return res.status(500).json({ error: "API Key Gemini belum dipasang di Vercel Environment Variables." });
     }
 
     const { theme } = req.body || {};
     const selectedTheme = theme || "General English Conversation";
     const seed = Date.now();
 
-    // Compact prompt to generate 10 questions efficiently in one call
     const prompt = `You are an expert English Language Test Creator and Islamic Lecturer.
 Generate 10 multiple-choice listening test items for students studying the topic "${selectedTheme}" (Seed: ${seed}).
 
 Keep transcript short (2 sentences each) to remain concise.
-Respond ONLY with a valid JSON array of 10 objects. No markdown formatting, no preamble:
+Respond ONLY with a valid JSON array of 10 objects. No markdown, no pre-text:
 [
   {
-    "transcript": "Short English conversation/statement",
+    "transcript": "Short English conversation or statement",
     "question": "Comprehension question in English",
     "options": ["A", "B", "C", "D"],
     "answer": "Exact string of correct choice from options",
@@ -38,61 +39,49 @@ Respond ONLY with a valid JSON array of 10 objects. No markdown formatting, no p
   }
 ]`;
 
-    // Production-stable models order
-    const modelsToTry = ["gemini-1.5-flash", "gemini-1.5-flash-8b"];
     let lastError = "";
 
-    // LOOP SMART FAILOVER: Coba semua kombinasi Key & Model
-    for (const key of keys) {
-        for (const model of modelsToTry) {
-            try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: {
-                            temperature: 0.7,
-                            maxOutputTokens: 4000
-                        }
-                    })
-                });
+    // 2. Loop Mencoba Setiap API Key yang Ada secara Bergantian
+    for (const apiKey of keys) {
+        try {
+            const ai = new GoogleGenAI({ apiKey });
 
-                if (!response.ok) {
-                    const errData = await response.json().catch(() => ({}));
-                    lastError = errData.error?.message || `HTTP ${response.status}`;
-                    console.warn(`[Key Failover] Model ${model} dengan Key ...${key.slice(-4)} gagal: ${lastError}`);
-                    continue; // Pindah ke key/model berikutnya jika ini limit
+            // Menggunakan SDK Resmi dengan model paling stabil & cepat saat ini: gemini-2.5-flash
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: {
+                    responseMimeType: "application/json"
                 }
+            });
 
-                const data = await response.json();
-                let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            let rawText = response.text;
+            if (!rawText) continue;
 
-                if (!rawText) continue;
+            // Pembersihan JSON
+            rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+            const firstBracket = rawText.indexOf('[');
+            const lastBracket = rawText.lastIndexOf(']');
 
-                // Clean JSON string
-                rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
-                const firstBracket = rawText.indexOf('[');
-                const lastBracket = rawText.lastIndexOf(']');
-
-                if (firstBracket !== -1 && lastBracket !== -1) {
-                    rawText = rawText.substring(firstBracket, lastBracket + 1);
-                }
-
-                const items = JSON.parse(rawText);
-
-                if (Array.isArray(items) && items.length > 0) {
-                    return res.status(200).json({ items });
-                }
-            } catch (err) {
-                lastError = err.message;
-                console.error(`[Exception]`, err.message);
+            if (firstBracket !== -1 && lastBracket !== -1) {
+                rawText = rawText.substring(firstBracket, lastBracket + 1);
             }
+
+            const items = JSON.parse(rawText);
+
+            if (Array.isArray(items) && items.length > 0) {
+                // Berhasil! Langsung kirim 10 soal ke frontend
+                return res.status(200).json({ items });
+            }
+
+        } catch (err) {
+            lastError = err.message;
+            console.warn(`[Key Failover Warning] Key berakhir ...${apiKey.slice(-4)} gagal:`, err.message);
+            // Otomatis lanjut mencoba API Key berikutnya jika Key ini limit/error
         }
     }
 
     return res.status(500).json({
-        error: `Semua API Key/Model sedang sibuk atau limit (${lastError}). Silakan coba beberapa saat lagi.`
+        error: `Semua API Key sedang limit/sibuk (${lastError}). Silakan coba beberapa saat lagi.`
     });
 }
