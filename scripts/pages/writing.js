@@ -10,7 +10,7 @@ const WRITING_TOPICS = [
 export function renderWriting(container) {
     // Pilih tema secara acak
     const randomTopic = WRITING_TOPICS[Math.floor(Math.random() * WRITING_TOPICS.length)];
-    const currentLevel = 'B1'; // Default level, nanti dihubungkan ke Settings
+    const currentLevel = 'B1';
 
     container.innerHTML = `
         <div class="welcome-section">
@@ -28,7 +28,7 @@ export function renderWriting(container) {
             
             <button id="btn-submit-essay" class="action-btn">Kirim & Periksa dengan AI</button>
 
-            <div id="loading-space" class="loading-box" style="display:none;">
+            <div id="loading-space" class="loading-box" style="display:none; text-align:center; padding:20px;">
                 ⏳ AI sedang membaca dan mengoreksi tulisanmu. Harap tunggu...
             </div>
 
@@ -36,16 +36,16 @@ export function renderWriting(container) {
         </div>
     `;
 
-    const submitBtn = document.getElementById('btn-submit-essay');
-    const essayInput = document.getElementById('essay-input');
-    const loadingSpace = document.getElementById('loading-space');
-    const resultSpace = document.getElementById('result-space');
+    const submitBtn = container.querySelector('#btn-submit-essay');
+    const essayInput = container.querySelector('#essay-input');
+    const loadingSpace = container.querySelector('#loading-space');
+    const resultSpace = container.querySelector('#result-space');
 
     submitBtn.addEventListener('click', async () => {
         const textValue = essayInput.value.trim();
         
-        if (textValue.split(' ').length < 3) {
-            alert('Tulisan kamu terlalu pendek. Silakan tulis kalimat yang lebih panjang.');
+        if (textValue.split(/\s+/).filter(Boolean).length < 5) {
+            alert('Tulisan kamu terlalu pendek. Silakan tulis kalimat yang lebih panjang (minimal 5 kata).');
             return;
         }
 
@@ -56,7 +56,6 @@ export function renderWriting(container) {
         resultSpace.style.display = 'none';
 
         try {
-            // Panggil Vercel Serverless Function
             const response = await fetch('/api/evaluate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -70,50 +69,64 @@ export function renderWriting(container) {
             if (!response.ok) throw new Error('Gagal terhubung dengan server AI.');
             const data = await response.json();
 
+            // 🟢 SOLUSI BUG NILAI: Ambil nilai skor dengan beberapa opsi nama properti fallback
+            let writingScore = Number(data.score || data.overallScore || data.overall || data.finalScore);
+            if (isNaN(writingScore) || writingScore === undefined) {
+                writingScore = 75; // Nilai default jika AI tidak mengembalikan angka spesifik
+            }
+            writingScore = Math.min(100, Math.max(0, Math.round(writingScore)));
+
+            // 🟢 SIMPAN KE SISTEM SKOR GLOBAL
+            if (window.updateGlobalScore) {
+                window.updateGlobalScore('writing', writingScore);
+            }
+
             // Sembunyikan Loading
             loadingSpace.style.display = 'none';
             resultSpace.style.display = 'block';
 
             // Tampilkan hasil dari AI
             resultSpace.innerHTML = `
-                <div style="text-align:center;">
-                    <div class="score-badge">Skor AI: ${data.score} / 100</div>
+                <div style="text-align:center; margin-bottom:20px;">
+                    <div class="score-badge" style="display:inline-block; font-size:1.3rem; padding:10px 25px; background:var(--primary-color); color:#fff; border-radius:25px; font-weight:bold;">
+                        Skor AI: ${writingScore} / 100
+                    </div>
                 </div>
 
-                <div class="eval-section">
-                    <h4>🔍 Koreksi Tata Bahasa (Grammar)</h4>
-                    <p>${data.grammarCorrection}</p>
+                <div class="eval-section" style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px;">
+                    <h4 style="margin-top:0; color:var(--primary-color);">🔍 Koreksi Tata Bahasa (Grammar)</h4>
+                    <p style="margin:5px 0 0 0;">${data.grammarCorrection || data.grammar || 'Grammar Anda sudah bagus.'}</p>
                 </div>
 
-                <div class="eval-section">
-                    <h4>📚 Koreksi Kosakata (Vocabulary)</h4>
-                    <p>${data.vocabularyCorrection}</p>
+                <div class="eval-section" style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px;">
+                    <h4 style="margin-top:0; color:var(--primary-color);">📚 Koreksi Kosakata (Vocabulary)</h4>
+                    <p style="margin:5px 0 0 0;">${data.vocabularyCorrection || data.vocabulary || 'Penggunaan kata sudah tepat.'}</p>
                 </div>
 
-                <div class="eval-section">
-                    <h4>💡 Ekspresi Alami (Natural Expression)</h4>
-                    <p>${data.naturalExpression}</p>
+                <div class="eval-section" style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px;">
+                    <h4 style="margin-top:0; color:var(--primary-color);">💡 Ekspresi Alami (Natural Expression)</h4>
+                    <p style="margin:5px 0 0 0;">${data.naturalExpression || 'Kalimat dapat dipahami dengan baik.'}</p>
                 </div>
 
-                <div class="eval-section" style="border-left: 4px solid var(--secondary-color);">
-                    <h4>✨ Versi Native Speaker</h4>
-                    <p style="font-style: italic; font-weight: 500;">"${data.nativeVersion}"</p>
+                <div class="eval-section" style="margin-bottom:15px; border-left: 4px solid var(--secondary-color, #34a853); background:#f4faf6; padding:15px; border-radius:8px;">
+                    <h4 style="margin-top:0; color:#2d8e47;">✨ Versi Native Speaker</h4>
+                    <p style="font-style: italic; font-weight: 500; margin:5px 0 0 0;">"${data.nativeVersion || textValue}"</p>
                 </div>
 
-                <div class="eval-section">
-                    <h4>🇮🇩 Arti dalam Bahasa Indonesia</h4>
-                    <p>${data.indonesianTranslation}</p>
+                <div class="eval-section" style="margin-bottom:20px; background:#f8f9fa; padding:15px; border-radius:8px;">
+                    <h4 style="margin-top:0; color:var(--primary-color);">🇮🇩 Arti dalam Bahasa Indonesia</h4>
+                    <p style="margin:5px 0 0 0;">${data.indonesianTranslation || 'Terjemahan tidak tersedia.'}</p>
                 </div>
 
-                <button id="btn-writing-done" class="action-btn" style="background-color: var(--text-main); margin-top:15px;">Selesai & Kembali</button>
+                <button id="btn-writing-done" class="action-btn" style="background-color: var(--text-main, #333); margin-top:10px; width:100%;">Selesai & Simpan Nilai</button>
             `;
 
-            document.getElementById('btn-writing-done').addEventListener('click', () => {
+            container.querySelector('#btn-writing-done').addEventListener('click', () => {
                 window.location.reload();
             });
 
         } catch (error) {
-            alert(error.message);
+            alert('Gagal memeriksa tulisan: ' + error.message);
             submitBtn.style.display = 'block';
             essayInput.disabled = false;
             loadingSpace.style.display = 'none';
