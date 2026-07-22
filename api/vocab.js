@@ -16,7 +16,7 @@ export default async function handler(req, res) {
     if (keys.length === 0) return res.status(500).json({ error: "API Key tidak ditemukan." });
 
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
-    const models = ["gemini-2.5-flash", "gemini-1.5-flash"];
+    const models = ["gemini-2.5-flash", "gemini-2.5-flash"];
 
     const prompt = `You are an expert English Language Pedagogy AI.
 Generate a high-frequency daily vocabulary batch containing EXACTLY 50 practical words (CEFR B1-C1) and EXACTLY 20 VARIATED quiz questions testing those words.
