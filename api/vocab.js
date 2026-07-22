@@ -18,26 +18,27 @@ export default async function handler(req, res) {
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
     const models = ["gemini-2.5-flash", "gemini-1.5-flash"];
 
-    // PROMPT KETAT: Mengunci AI agar HANYA memilih kata mainstream & akademik populer
-    const prompt = `You are an expert English Tutor. 
-Generate a daily batch containing EXACTLY 50 highly practical, highly common, and mainstream English vocabulary words (CEFR B1-C1 level) used in daily conversations, academic discussions, or general knowledge. 
+    const prompt = `You are an expert English Language Pedagogy AI.
+Generate a high-frequency daily vocabulary batch containing EXACTLY 50 practical words (CEFR B1-C1) and EXACTLY 20 VARIATED quiz questions testing those words.
 
-DO NOT use rare, obsolete, or overly poetic words. Focus on high-frequency words that non-native speakers genuinely need (e.g., words like 'Perspective', 'Analyze', 'Significant', 'Crucial', 'Cooperate', 'Fascinating', 'Maintain', etc.).
-
-Along with the 50 words, generate 50 multiple-choice quiz questions testing those exact words.
+The 20 quiz questions MUST be a mix of:
+1. Standard Multiple Choice (Meaning lookup)
+2. Fill-in-the-blank / Sentence Context (e.g., "The team needs to _____ to solve this. [collaborate, encrypted...]")
+3. Word Guessing / Definition Match (e.g., "Which word best matches: 'A goal or target date for finishing work'?")
 
 Output MUST be strictly valid JSON without markdown formatting, matching this exact structure:
 {
-  "theme": "Practical & Academic High-Frequency Vocab",
+  "theme": "High-Frequency Practical Vocab",
   "words": [
-    { "word": "Practical Word", "meaning": "Arti Indonesia yang umum & mudah dipahami", "example": "Natural sentence used in daily life or study." }
+    { "word": "Collaborate", "meaning": "Bekerja sama", "example": "We need to collaborate." }
   ],
   "quizzes": [
     {
-      "question": "What is the most accurate meaning of 'Practical Word'?",
-      "options": ["Correct Meaning", "Wrong Option 1", "Wrong Option 2", "Wrong Option 3"],
-      "answer": "Correct Meaning",
-      "explanation": "Penjelasan singkat dan jelas dalam Bahasa Indonesia."
+      "type": "fill-in-blank", 
+      "question": "Complete the sentence: 'We need to _____ on this project before Friday.'",
+      "options": ["collaborate", "resilient", "bandwidth", "encrypted"],
+      "answer": "collaborate",
+      "explanation": "'Collaborate' berarti bekerja sama dalam menyelesaikan tugas."
     }
   ]
 }`;
