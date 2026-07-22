@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
     
     // Gunakan daftar model terbaru
-    const candidateModels = ["gemini-1.5-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash-exp"];
+    const candidateModels = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-2.0-flash-exp"];
 
     const randomThemes = ["Technology", "Emotions", "Nature & Travel", "Culinary", "Business", "Health", "Space", "Art"];
     const pickedTheme = randomThemes[Math.floor(Math.random() * randomThemes.length)];
