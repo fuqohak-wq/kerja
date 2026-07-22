@@ -2,51 +2,84 @@ export function renderGrammar(container) {
     container.innerHTML = `
         <div class="welcome-section">
             <h2>⚙️ Grammar Practice</h2>
-            <p>Pahami tata bahasa Inggris dengan penjelasan interaktif dari AI Tutor.</p>
+            <p>Sistem Batch AI: Cepat, hemat kuota, dan interaktif!</p>
         </div>
 
         <div class="reading-container" style="background:#fff; padding:20px; border-radius:12px; border:1px solid #dadce0; max-width:800px; margin:0 auto;">
             <div id="grammar-content" style="text-align:center; padding:20px;">
-                <p>⏳ AI sedang merancang materi & kuis tata bahasa hari ini...</p>
+                <p>⏳ Memuat materi grammar...</p>
             </div>
         </div>
     `;
 
     const grammarContent = container.querySelector('#grammar-content');
+    loadGrammarBatch(grammarContent);
+}
 
-    fetch('/api/grammar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'generate-fresh', timestamp: Date.now() })
-    })
-    .then(res => res.json())
-    .then(data => {
-        const topics = data.topics || [];
-        const quizzes = data.quizzes || [];
+async function loadGrammarBatch(grammarContent) {
+    const today = new Date().toISOString().split('T')[0];
+    const STORAGE_KEY = 'inggrisku_grammar_batch';
 
-        let html = `<div style="text-align:left; margin-bottom:20px;">`;
-        topics.forEach((g, idx) => {
-            html += `
-                <div style="background:#f4faf6; padding:12px 15px; border-radius:8px; border-left:4px solid #34a853; margin-bottom:12px; color:#137333;">
-                    <h4 style="margin:0 0 5px 0;">${idx + 1}. ${g.topic}</h4>
-                    <p style="margin:4px 0; font-size:0.95rem; color:#202124;">${g.explanation}</p>
-                    <small style="color:#137333;"><strong>Pola:</strong> <code>${g.formula || '-'}</code></small>
-                </div>
-            `;
-        });
-        html += `</div><hr style="margin:20px 0; border:0; border-top:1px solid #eee;"><div id="quiz-area"></div>`;
+    let localBatch = null;
+    try {
+        localBatch = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    } catch (e) {}
 
-        grammarContent.innerHTML = html;
-        renderQuizSystem(quizzes, 'grammar', grammarContent.querySelector('#quiz-area'));
-    })
-    .catch(err => {
-        grammarContent.innerHTML = `<p style="color:#d93025;">⚠️ Gagal memuat Grammar dari AI. Silakan coba lagi.</p>`;
+    const isNeedFetch = !localBatch || localBatch.date !== today || !localBatch.topics || localBatch.topics.length < 2;
+
+    if (isNeedFetch) {
+        grammarContent.innerHTML = `<p style="color:#34a853; font-weight:bold;">🤖 Mengontak AI untuk mengunduh materi Grammar harian... (Cukup 1x sehari)</p>`;
+        try {
+            const res = await fetch('/api/grammar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'get-batch' })
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.topics || data.topics.length === 0) {
+                throw new Error(data.error || "Gagal mendapatkan data dari AI");
+            }
+
+            localBatch = {
+                date: today,
+                topics: data.topics,
+                quizzes: data.quizzes || []
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(localBatch));
+
+        } catch (err) {
+            grammarContent.innerHTML = `<p style="color:#d93025;">⚠️ Gagal memuat AI: ${err.message}. Silakan coba lagi.</p>`;
+            return;
+        }
+    }
+
+    const displayTopics = localBatch.topics.slice(0, 2);
+    const displayQuizzes = localBatch.quizzes.slice(0, 5);
+
+    localBatch.topics = localBatch.topics.slice(2);
+    localBatch.quizzes = localBatch.quizzes.slice(5);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(localBatch));
+
+    let html = `<div style="text-align:left; margin-bottom:20px;">`;
+    displayTopics.forEach((g, idx) => {
+        html += `
+            <div style="background:#f4faf6; padding:12px 15px; border-radius:8px; border-left:4px solid #34a853; margin-bottom:12px; color:#137333;">
+                <h4 style="margin:0 0 5px 0;">${idx + 1}. ${g.topic}</h4>
+                <p style="margin:4px 0; font-size:0.95rem; color:#202124;">${g.explanation}</p>
+                <small style="color:#137333;"><strong>Pola:</strong> <code>${g.formula || '-'}</code></small>
+            </div>
+        `;
     });
+    html += `</div><hr style="margin:20px 0; border:0; border-top:1px solid #eee;"><div id="quiz-area"></div>`;
+
+    grammarContent.innerHTML = html;
+    renderQuizSystem(displayQuizzes, 'grammar', grammarContent.querySelector('#quiz-area'));
 }
 
 function renderQuizSystem(quizzes, scoreKey, container) {
     if (!quizzes || quizzes.length === 0) {
-        container.innerHTML = `<p style="color:gray;">Kuis tidak tersedia.</p>`;
+        container.innerHTML = `<p style="color:gray;">Kuis grammar sudah selesai untuk sesi ini.</p>`;
         return;
     }
 
@@ -59,7 +92,7 @@ function renderQuizSystem(quizzes, scoreKey, container) {
         container.innerHTML = `
             <div style="text-align:left; background:#f8f9fa; padding:15px; border-radius:10px; border:1px solid #e0e0e0;">
                 <p style="font-size:0.85rem; color:#34a853; font-weight:bold; margin:0 0 5px 0;">🎯 Soal Kuis (${currentIndex + 1}/${quizzes.length})</p>
-                <p style="margin:0 0 12px 0; font-weight:bold; font-size:1rem;">${q.question}</p>
+                <p style="margin:0 0 12px 0; font-weight:bold; font-size:1rem; color:#202124;">${q.question}</p>
                 <div style="display:flex; flex-direction:column; gap:8px;">
                     ${q.options.map(o => `<button class="opt-btn" data-val="${o}" style="text-align:left; padding:10px 12px; background:#fff; border:1px solid #ccc; border-radius:8px; cursor:pointer; font-size:0.95rem;">${o}</button>`).join('')}
                 </div>
@@ -100,7 +133,7 @@ function renderQuizSystem(quizzes, scoreKey, container) {
                 }
                 container.innerHTML = `
                     <div style="text-align:center; padding:20px; background:#e6f4ea; border-radius:12px; color:#137333;">
-                        <h3 style="margin:0 0 10px 0;">🎉 Selesai Kuis Grammar!</h3>
+                        <h3 style="margin:0 0 10px 0;">🎉 Selesai Latihan Grammar!</h3>
                         <p style="font-size:1.4rem; font-weight:bold; margin:5px 0;">Skor Kamu: ${score} / 100</p>
                         <p style="font-size:0.85rem; color:#5f6368; margin:0;">Nilai ini telah tersimpan dan siap dikirim ke Laporan Harian (B6).</p>
                     </div>
