@@ -3,12 +3,13 @@ import { renderReading } from './pages/reading.js';
 import { renderWriting } from './pages/writing.js';
 import { renderListening } from './pages/listening.js';
 import { renderSpeaking } from './pages/speaking.js';
+import { renderVocab } from './pages/vocab.js';
+import { renderGrammar } from './pages/grammar.js';
 
 // =========================================================
 // STATE & PENYIMPANAN SKOR PERSISTEN (LOCAL STORAGE)
 // =========================================================
 
-// Fungsi Helper untuk Mengambil Skor Terbaru dari Storage
 function getSavedScores() {
     const saved = localStorage.getItem('inggrisku_global_scores');
     if (saved) {
@@ -20,24 +21,18 @@ function getSavedScores() {
 // Inisialisasi Window Global Skor
 window.globalScores = getSavedScores();
 
-// Fungsi Global yang Dipanggil oleh Modul (Writing, Speaking, dll)
+// Fungsi Global yang Dipanggil oleh Modul (Writing, Speaking, Vocab, Grammar, dll)
 window.updateGlobalScore = function(skillName, scoreValue) {
-    // 1. Ambil data terbaru dari storage
     const currentScores = getSavedScores();
     
-    // 2. Perbarui nilai skill terkait
     if (currentScores.hasOwnProperty(skillName)) {
         currentScores[skillName] = Math.min(100, Math.max(0, Number(scoreValue) || 0));
-        
-        // 3. Simpan permanen di LocalStorage & Sync ke Window RAM
         localStorage.setItem('inggrisku_global_scores', JSON.stringify(currentScores));
         window.globalScores = currentScores;
-        
         console.log(`[Skor Disimpan] ${skillName}: ${currentScores[skillName]}`);
     }
 };
 
-// Menghitung Nilai Persentase Akhir (0 - 100%)
 function calculateTotalDailyScore() {
     const scores = getSavedScores();
     const sum = Object.values(scores).reduce((acc, curr) => acc + (Number(curr) || 0), 0);
@@ -58,7 +53,6 @@ function router(page) {
     if (!appContent) return;
     appContent.innerHTML = '';
 
-    // Selalu muat ulang memori skor dari storage saat pindah halaman
     window.globalScores = getSavedScores();
 
     switch (page) {
@@ -78,6 +72,12 @@ function router(page) {
             break;
         case 'speaking':
             renderSpeaking(appContent);
+            break;
+        case 'vocab':
+            renderVocab(appContent);
+            break;
+        case 'grammar':
+            renderGrammar(appContent);
             break;
         case 'progress':
             const currentTotal = calculateTotalDailyScore();
@@ -146,13 +146,10 @@ function initMenuListeners() {
 // LOGIKA UTAMA TOMBOL SUBMIT RAPOR AKHIR (SEL B6)
 // =========================================================
 function initSubmitListener() {
-    // Cari tombol "Selesai & Kirim Laporan" (Bisa pakai ID #btn-submit-eval atau kelas .action-btn)
     const btnSubmit = document.getElementById('btn-submit-eval') || document.querySelector('.main-content .action-btn');
     
     if (btnSubmit) {
-        // Gunakan .onclick agar listener tidak tumpuk saat berpindah halaman
         btnSubmit.onclick = async () => {
-            // 1. PAKSA AMBIL SKOR TERUPDATE DARI LOCALSTORAGE
             const savedScores = getSavedScores();
             
             const spk = Number(savedScores.speaking || 0);
@@ -162,11 +159,9 @@ function initSubmitListener() {
             const voc = Number(savedScores.vocab || 0);
             const gra = Number(savedScores.grammar || 0);
 
-            // 2. HITUNG TOTAL SKOR & PERSENTASE AKHIR
-            const totalScore = spk + lis + rea + wri + voc + gra; // Total maks: 600
-            const percentage = Math.round((totalScore / 600) * 100); // Nilai % (0 - 100)
+            const totalScore = spk + lis + rea + wri + voc + gra;
+            const percentage = Math.round((totalScore / 600) * 100);
 
-            // 3. SUSUN PESAN RINCIAN RINCI KEPADA USER
             const rincianPesan = 
                 `📊 RINCIAN HASIL LATIHAN HARI INI:\n` +
                 `------------------------------------\n` +
@@ -181,7 +176,6 @@ function initSubmitListener() {
                 `🎯 NILAI AKHIR: ${percentage}%\n\n` +
                 `Kirim Nilai Akhir (${percentage}) ini ke Sel B6?`;
 
-            // 4. BUKA DIALOG POPUP KONFIRMASI
             const setuju = confirm(rincianPesan);
 
             if (setuju) {
@@ -189,21 +183,23 @@ function initSubmitListener() {
                     btnSubmit.disabled = true;
                     btnSubmit.innerText = "⏳ Mengirim Nilai...";
 
-                    // Kirim ke API Spreadsheet / Backend (Jika ada)
-                    await fetch('/api/submit-score', {
+                    const res = await fetch('/api/submit-score', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            score: percentage,
-                            cell: 'B6',
+                            finalScore: percentage,
                             details: { speaking: spk, listening: lis, reading: rea, writing: wri, vocab: voc, grammar: gra }
                         })
                     });
 
-                    alert(`✅ Masya Allah! Nilai ${percentage}% berhasil dikirim ke Sel B6.`);
+                    const data = await res.json();
+                    if (data.success !== false) {
+                        alert(`✅ Masya Allah! Nilai ${percentage}% berhasil dimasukkan ke Google Sheet Sel B6!`);
+                    } else {
+                        throw new Error(data.error || "Gagal update sheet");
+                    }
                 } catch (err) {
-                    // Beri konfirmasi sukses walau API backend belum dipasang
-                    alert(`✅ Nilai Akhir ${percentage}% disetujui untuk dimasukkan ke Sel B6!`);
+                    alert(`⚠️ Notifikasi: Nilai Akhir ${percentage}% gagal terkirim ke Sheet (${err.message})`);
                 } finally {
                     btnSubmit.disabled = false;
                     btnSubmit.innerText = "Selesai & Kirim Laporan Hari Ini";
@@ -224,7 +220,6 @@ function initNavListeners() {
     });
 }
 
-// Inisialisasi Pertama Saat Web Dimuat
 document.addEventListener('DOMContentLoaded', () => {
     router('home');
     initNavListeners();
