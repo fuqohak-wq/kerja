@@ -5,20 +5,27 @@ export default async function handler(req, res) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    const GOOGLE_SCRIPT_URL = "[https://script.google.com/macros/s/AKfycbzfFxfuEbVuN0CEmBzQbaLGywsacI7gPBue45eCKadELkN6mypef1rJ233Xt4FUybXxIQ/exec](https://script.google.com/macros/s/AKfycbzfFxfuEbVuN0CEmBzQbaLGywsacI7gPBue45eCKadELkN6mypef1rJ233Xt4FUybXxIQ/exec)"; 
+    // URL Web App Google Apps Script yang baru
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyGhk7HCM76ortAHo3Nv255HBSjghbwocOXw6fp5PpWhBLMDa4r_GFjH3ULfZGlUggy/exec"; 
 
     if (req.method === 'POST') {
         try {
-            const { finalScore } = req.body || {};
+            const { finalScore, details } = req.body || {};
+            
+            // Forward data ke Google Apps Script
             const response = await fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: "submit-score", finalScore })
+                body: JSON.stringify({ 
+                    action: "submit-score", 
+                    finalScore: Number(finalScore) || 0,
+                    details: details || {}
+                })
             });
 
             const textResult = await response.text();
             if (textResult.startsWith("<!DOCTYPE") || textResult.startsWith("<html")) {
-                throw new Error("Google Apps Script mengembalikan HTML. Pastikan deployment diatur ke 'Anyone'.");
+                throw new Error("Google Apps Script mengembalikan HTML. Pastikan Deployment diatur ke 'Anyone'.");
             }
 
             const jsonResult = JSON.parse(textResult);
