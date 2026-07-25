@@ -2,7 +2,7 @@ export function renderVocab(container) {
     container.innerHTML = `
         <div class="welcome-section">
             <h2>📚 Daily Vocabulary Challenge</h2>
-            <p>Uji daya ingatmu dengan 20 soal variatif buatan AI!</p>
+            <p>Uji daya ingatmu dengan 20 soal variatif khusus untuk 5 kosakata hari ini!</p>
         </div>
 
         <div class="reading-container" style="background:#fff; padding:20px; border-radius:12px; border:1px solid #dadce0; max-width:800px; margin:0 auto;">
@@ -18,23 +18,33 @@ export function renderVocab(container) {
 
 async function loadVocabBatch(vocabContent) {
     const today = new Date().toISOString().split('T')[0];
-    const STORAGE_KEY = 'inggrisku_vocab_batch_50';
+    const STORAGE_KEY = 'inggrisku_vocab_daily_5';
+    const SEEN_WORDS_KEY = 'inggrisku_seen_vocab';
 
     let localBatch = null;
     try {
         localBatch = JSON.parse(localStorage.getItem(STORAGE_KEY));
     } catch (e) {}
 
+    // Ambil daftar kata yang sudah dipelajari sebelumnya agar tidak berulang
+    let seenWords = [];
+    try {
+        seenWords = JSON.parse(localStorage.getItem(SEEN_WORDS_KEY)) || [];
+    } catch (e) {}
+
     // Ambil data baru jika belum ada, beda hari, atau kuis kurang dari 20
-    const isNeedFetch = !localBatch || localBatch.date !== today || !localBatch.words || !localBatch.quizzes || localBatch.quizzes.length < 20;
+    const isNeedFetch = !localBatch || localBatch.date !== today || !localBatch.words || localBatch.words.length < 5 || !localBatch.quizzes || localBatch.quizzes.length < 20;
 
     if (isNeedFetch) {
-        vocabContent.innerHTML = `<p style="color:#1a73e8; font-weight:bold;">🤖 Meminta AI menyiapkan 50 kata & 20 Soal Variatif... (Cukup 1x sehari)</p>`;
+        vocabContent.innerHTML = `<p style="color:#1a73e8; font-weight:bold;">🤖 Meminta AI menyiapkan 5 kata baru & 20 Soal khusus... (Cukup 1x sehari)</p>`;
         try {
             const res = await fetch('/api/vocab', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'get-batch-50' })
+                body: JSON.stringify({ 
+                    action: 'get-batch-5',
+                    exclude: seenWords // Kirim daftar kata yang dihindari
+                })
             });
             const data = await res.json();
 
@@ -42,12 +52,23 @@ async function loadVocabBatch(vocabContent) {
                 throw new Error(data.error || "Gagal mendapatkan data dari AI");
             }
 
+            // Simpan data batch hari ini
             localBatch = {
                 date: today,
-                words: data.words,
-                quizzes: data.quizzes || []
+                words: data.words.slice(0, 5),
+                quizzes: data.quizzes.slice(0, 20)
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(localBatch));
+
+            // Tambahkan kata baru hari ini ke daftar yang sudah pernah dipelajari
+            const newWords = data.words.map(w => w.word.toLowerCase());
+            const updatedSeenWords = Array.from(new Set([...seenWords, ...newWords]));
+            
+            // Batasi ukuran history seenWords (misal maksimal 150 kata) agar tidak memenuhi memori browser
+            if (updatedSeenWords.length > 150) {
+                updatedSeenWords.splice(0, updatedSeenWords.length - 150);
+            }
+            localStorage.setItem(SEEN_WORDS_KEY, JSON.stringify(updatedSeenWords));
 
         } catch (err) {
             vocabContent.innerHTML = `<p style="color:#d93025;">⚠️ Gagal memuat AI: ${err.message}. Silakan coba lagi.</p>`;
@@ -55,9 +76,8 @@ async function loadVocabBatch(vocabContent) {
         }
     }
 
-    // Ambil 5 kata untuk dipelajari & 20 SOAL KUIS
-    const displayWords = localBatch.words.slice(0, 5);
-    const displayQuizzes = localBatch.quizzes.slice(0, 20); // Ambil 20 Soal
+    const displayWords = localBatch.words;
+    const displayQuizzes = localBatch.quizzes;
 
     let html = `<div style="text-align:left; margin-bottom:20px;">`;
     html += `<h3 style="color:#1a73e8; margin-top:0;">🌟 5 Kosakata Unggulan Hari Ini</h3><ol style="padding-left:20px; line-height:1.8;">`;
@@ -143,7 +163,6 @@ function renderQuizSystem(quizzes, scoreKey, container) {
             if (currentIndex < quizzes.length) {
                 showQuestion();
             } else {
-                // LOGIKA SKOR TETAP MAKSIMAL 100
                 const finalScore = Math.round((correctCount / quizzes.length) * 100);
                 
                 if (window.updateGlobalScore) {
