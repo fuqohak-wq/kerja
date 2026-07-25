@@ -32,11 +32,25 @@ export function renderSpeaking(container) {
                 <p id="call-turns" style="font-size:0.95rem; color:#5f6368; margin-bottom:20px;">💬 Jumlah Interaksi Suara: 0 kali</p>
                 <p style="color:var(--text-muted, #5f6368); font-size:0.85rem; margin-bottom:25px;">Bicaralah aktif dalam Bahasa Inggris. Sistem menghitung durasi dan keaktifan responmu.</p>
                 
-                <button id="btn-end-call" class="action-btn" style="background:#ea4335; color:white; border:none; padding:14px 28px; border-radius:30px; font-weight:bold; cursor:pointer; font-size:1rem;">🛑 Akhiri & Kirim Rapor Laporan</button>
+                <div style="display:flex; flex-direction:column; gap:12px; align-items:center;">
+                    <!-- TOMBOL MODE SAKU BARU -->
+                    <button id="btn-pocket-mode" class="action-btn" style="background:#f1f3f4; color:#3c4043; border:1px solid #dadce0; padding:10px 20px; border-radius:30px; font-weight:bold; cursor:pointer; font-size:0.9rem; display:flex; align-items:center; gap:8px;">
+                        🔒 Masuk Mode Saku (Taruh Saku)
+                    </button>
+                    
+                    <button id="btn-end-call" class="action-btn" style="background:#ea4335; color:white; border:none; padding:14px 28px; border-radius:30px; font-weight:bold; cursor:pointer; font-size:1rem;">🛑 Akhiri & Kirim Rapor Laporan</button>
+                </div>
             </div>
 
             <!-- RAPOR HASIL EVALUASI -->
             <div id="speaking-report" style="display:none; text-align:left; background:#fff; border:1px solid #dadce0; border-radius:16px; padding:25px; box-shadow:0 4px 12px rgba(0,0,0,0.05);"></div>
+        </div>
+
+        <!-- OVERLAY MODE SAKU (LAYAR HITAM LOCK) -->
+        <div id="pocket-overlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#000000; z-index:99999; justify-content:center; align-items:center; flex-direction:column; color:#3c4043; user-select:none; -webkit-user-select:none;">
+            <div style="font-size:4rem; margin-bottom:20px; opacity:0.15; animation: pulse 2s infinite;">🔒</div>
+            <p style="color:#4a4a4a; font-size:1.1rem; font-weight:500; margin:0 20px; text-align:center;">Mode Saku Aktif</p>
+            <p style="color:#333333; font-size:0.85rem; margin-top:8px;">Ketuk cepat 2x di mana saja untuk membuka layar</p>
         </div>
 
         <style>
@@ -46,6 +60,8 @@ export function renderSpeaking(container) {
 
     const startBtn = container.querySelector('#btn-start-call');
     const endBtn = container.querySelector('#btn-end-call');
+    const pocketBtn = container.querySelector('#btn-pocket-mode');
+    const pocketOverlay = container.querySelector('#pocket-overlay');
     const setupDiv = container.querySelector('#setup-speaking');
     const activeDiv = container.querySelector('#call-active');
     const statusTxt = container.querySelector('#call-status');
@@ -58,6 +74,7 @@ export function renderSpeaking(container) {
     let currentRole = 'Guru Bahasa Inggris';
     let chosenGender = 'female';
     let isListening = false;
+    let isCallActive = false; 
     let silenceTimer = null;
     const SILENCE_DELAY = 4000; 
 
@@ -97,10 +114,9 @@ export function renderSpeaking(container) {
         if (timerInterval) clearInterval(timerInterval);
     }
 
-    // ✅ PERBAIKAN KALKULASI SKOR MATEMATIS YANTI MURNI TANPA BUG 'data'
     function calculateSpeakingScore(seconds, turns) {
         if (seconds <= 0) return 0;
-        let baseScore = (seconds / 1200) * 100; // 20 Menit = 100
+        let baseScore = (seconds / 1200) * 100; 
         if (baseScore > 100) baseScore = 100;
 
         const requiredTurns = Math.max(1, Math.floor(seconds / 90));
@@ -123,7 +139,12 @@ export function renderSpeaking(container) {
             statusTxt.innerText = "🎙️ Mendengarkan... (Silakan Bicara)";
         };
 
-        recognition.onend = () => { isListening = false; };
+        recognition.onend = () => { 
+            isListening = false; 
+            if (isCallActive && !window.speechSynthesis.speaking) {
+                setTimeout(startListeningSafely, 1000);
+            }
+        };
 
         recognition.onresult = (event) => {
             clearTimeout(silenceTimer);
@@ -142,6 +163,7 @@ export function renderSpeaking(container) {
         };
 
         recognition.onerror = (e) => {
+            console.warn("Speech Error:", e.error);
             if (e.error !== 'no-speech') {
                 statusTxt.innerText = "🎙️ Memulihkan koneksi mic...";
                 setTimeout(startListeningSafely, 1000);
@@ -150,10 +172,39 @@ export function renderSpeaking(container) {
     }
 
     function startListeningSafely() {
-        if (recognition && !isListening) {
+        if (isCallActive && recognition && !isListening) {
             try { recognition.start(); } catch(err) {}
         }
     }
+
+    // AKTIVASI & DEAKTIVASI MODE SAKU
+    pocketBtn.onclick = () => {
+        if (isCallActive) {
+            pocketOverlay.style.display = 'flex';
+        }
+    };
+
+    // Deteksi ketukan ganda (double tap) untuk keluar dari Mode Saku
+    let lastTap = 0;
+    pocketOverlay.addEventListener('click', () => {
+        const currentTime = new Date().getTime();
+        const tapDelay = currentTime - lastTap;
+        if (tapDelay < 300 && tapDelay > 0) {
+            pocketOverlay.style.display = 'none';
+        }
+        lastTap = currentTime;
+    });
+
+    // Menangani juga event touch untuk sensitivitas layar sentuh HP
+    pocketOverlay.addEventListener('touchend', (e) => {
+        const currentTime = new Date().getTime();
+        const tapDelay = currentTime - lastTap;
+        if (tapDelay < 300 && tapDelay > 0) {
+            e.preventDefault();
+            pocketOverlay.style.display = 'none';
+        }
+        lastTap = currentTime;
+    });
 
     startBtn.onclick = async () => {
         chatHistory = []; 
@@ -162,6 +213,7 @@ export function renderSpeaking(container) {
         chosenGender = container.querySelector('#select-gender').value;
         setupDiv.style.display = 'none';
         activeDiv.style.display = 'block';
+        isCallActive = true;
         
         await requestWakeLock();
         startTimer();
@@ -169,67 +221,89 @@ export function renderSpeaking(container) {
     };
 
     async function getAIResponse(userText) {
-        try {
-            window.speechSynthesis.cancel();
-            statusTxt.innerText = "⚡ AI sedang berpikir...";
-            
-            const res = await fetch('/api/chat', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ 
-                    message: userText, 
-                    history: chatHistory, 
-                    roleplay: currentRole, 
-                    level: 'B1',
-                    isFinalReport: false 
-                })
-            });
+        window.speechSynthesis.cancel();
+        let aiReply = "";
+        let success = false;
+        const maxRetries = 3;
 
-            let aiReply = "";
-            if (!res.ok) {
-                aiReply = `That's very interesting. As a ${currentRole}, I'd love to hear more!`;
-            } else {
-                const resData = await res.json();
-                aiReply = resData.reply || `I see. Tell me more about it!`;
-            }
-
-            chatHistory.push({ role: 'user', text: userText });
-            chatHistory.push({ role: 'model', text: aiReply });
-
-            statusTxt.innerHTML = `<span style="color:#202124; font-size:1rem; display:block; margin-bottom:10px; font-weight:500;">"${aiReply}"</span> 🔊 AI sedang berbicara...`;
-            
-            const utterance = new SpeechSynthesisUtterance(aiReply);
-            utterance.lang = 'en-US';
-            
-            const voices = window.speechSynthesis.getVoices();
-            const selectedVoice = voices.find(voice => {
-                const isEnglish = voice.lang.startsWith('en');
-                const nameLower = voice.name.toLowerCase();
-                if (isEnglish) {
-                    if (chosenGender === 'male') {
-                        return nameLower.includes('male') || nameLower.includes('david') || nameLower.includes('guy');
-                    } else {
-                        return nameLower.includes('female') || nameLower.includes('zira') || nameLower.includes('samantha');
-                    }
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                if (attempt > 1) {
+                    statusTxt.innerText = `⚠️ Sinyal kurang stabil. Mencoba lagi (${attempt}/${maxRetries})...`;
+                } else {
+                    statusTxt.innerText = "⚡ AI sedang berpikir...";
                 }
-                return false;
-            });
 
-            if (selectedVoice) utterance.voice = selectedVoice;
-            utterance.onend = () => { startListeningSafely(); };
-            window.speechSynthesis.speak(utterance);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); 
 
-        } catch(e) {
-            statusTxt.innerText = "🔊 Memutar respon...";
-            setTimeout(startListeningSafely, 2000);
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ 
+                        message: userText, 
+                        history: chatHistory, 
+                        roleplay: currentRole, 
+                        level: 'B1',
+                        isFinalReport: false 
+                    }),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (res.ok) {
+                    const resData = await res.json();
+                    aiReply = resData.reply || `I see. Tell me more about it!`;
+                    success = true;
+                    break;
+                }
+            } catch (err) {
+                console.warn(`Attempt ${attempt} failed:`, err.message);
+            }
+            await new Promise(resolve => setTimeout(resolve, 1500));
         }
+
+        if (!success) {
+            statusTxt.innerText = "⚠️ Sinyal lemah. Menggunakan respon cadangan...";
+            aiReply = `I'm listening, but the connection is slightly unstable. As your ${currentRole}, please keep going. Could you repeat or tell me more about that?`;
+        }
+
+        chatHistory.push({ role: 'user', text: userText });
+        chatHistory.push({ role: 'model', text: aiReply });
+
+        statusTxt.innerHTML = `<span style="color:#202124; font-size:1rem; display:block; margin-bottom:10px; font-weight:500;">"${aiReply}"</span> 🔊 AI sedang berbicara...`;
+        
+        const utterance = new SpeechSynthesisUtterance(aiReply);
+        utterance.lang = 'en-US';
+        
+        const voices = window.speechSynthesis.getVoices();
+        const selectedVoice = voices.find(voice => {
+            const isEnglish = voice.lang.startsWith('en');
+            const nameLower = voice.name.toLowerCase();
+            if (isEnglish) {
+                if (chosenGender === 'male') {
+                    return nameLower.includes('male') || nameLower.includes('david') || nameLower.includes('guy');
+                } else {
+                    return nameLower.includes('female') || nameLower.includes('zira') || nameLower.includes('samantha');
+                }
+            }
+            return false;
+        });
+
+        if (selectedVoice) utterance.voice = selectedVoice;
+        utterance.onend = () => { startListeningSafely(); };
+        utterance.onerror = () => { startListeningSafely(); };
+        window.speechSynthesis.speak(utterance);
     }
 
-    // ✅ PROSES RAPOR AKHIR DENGAN PENANGANAN ERROR & KOREKSI LENGKAP
     endBtn.onclick = async () => {
         stopTimer();
         statusTxt.innerText = "Menganalisis durasi, interaksi, dan kesalahan...";
         clearTimeout(silenceTimer);
+        isCallActive = false;
+        pocketOverlay.style.display = 'none'; // Sembunyikan mode saku saat mengakhiri
+        
         if (recognition) {
             try { recognition.onend = null; recognition.stop(); } catch(e){}
         }
@@ -245,83 +319,104 @@ export function renderSpeaking(container) {
         const minsSpent = Math.floor(totalSeconds / 60);
         const secsSpent = totalSeconds % 60;
 
-        try {
-            const res = await fetch('/api/chat', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ 
-                    history: chatHistory, 
-                    roleplay: currentRole, 
-                    level: 'B1', 
-                    isFinalReport: true 
-                })
-            });
-            
-            let reportData = { mistakes: [] };
-            if (res.ok) {
-                reportData = await res.json();
+        let reportData = { mistakes: [] };
+        let reportSuccess = false;
+
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+                if (attempt > 1) {
+                    statusTxt.innerText = `⚠️ Sinyal lambat. Mencoba menganalisis kembali (${attempt}/2)...`;
+                }
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 12000); 
+
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ 
+                        history: chatHistory, 
+                        roleplay: currentRole, 
+                        level: 'B1', 
+                        isFinalReport: true 
+                    }),
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                if (res.ok) {
+                    reportData = await res.json();
+                    reportSuccess = true;
+                    break;
+                }
+            } catch (err) {
+                console.warn(`Laporan gagal diunduh pada percobaan ${attempt}:`, err.message);
             }
-
-            activeDiv.style.display = 'none';
-            reportDiv.style.display = 'block';
-
-            // Mendukung 2 Format Array Mistake/Correction dari backend
-            const mistakesList = reportData.mistakes || reportData.corrections || [];
-
-            reportDiv.innerHTML = `
-                <div style="border-bottom:1px solid #eee; padding-bottom:15px; margin-bottom:20px; text-align:center;">
-                    <span style="font-size:3rem;">📊</span>
-                    <h3 style="margin:10px 0; color:#1a73e8; font-size:1.4rem;">Rapor Evaluasi AI Speaking</h3>
-                    <p style="color:#5f6368; font-size:0.95rem; margin:0;">Roleplay: <strong>${currentRole}</strong></p>
-                </div>
-
-                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:20px; text-align:center;">
-                    <div style="background:#f8f9fa; border:1px solid #dadce0; padding:15px; border-radius:10px;">
-                        <div style="font-size:1.2rem; font-weight:bold; color:#202124;">⏱️ ${minsSpent}m ${secsSpent}s</div>
-                        <div style="font-size:0.85rem; color:#5f6368;">Durasi Bicara</div>
-                    </div>
-                    <div style="background:#f8f9fa; border:1px solid #dadce0; padding:15px; border-radius:10px;">
-                        <div style="font-size:1.2rem; font-weight:bold; color:#202124;">💬 ${userTurnCount} Kali</div>
-                        <div style="font-size:0.85rem; color:#5f6368;">Respon Suara</div>
-                    </div>
-                </div>
-
-                <div style="text-align:center; margin-bottom:25px;">
-                    <div style="display:inline-block; background:#1a73e8; color:#fff; padding:10px 30px; border-radius:30px; font-weight:bold; font-size:1.3rem; box-shadow:0 3px 8px rgba(26,115,232,0.3);">
-                        Skor Akhir Speaking: ${computedScore} / 100
-                    </div>
-                </div>
-
-                <h4 style="color:#ea4335; margin-bottom:12px; font-size:1.1rem;">🛠️ Analisis Kesalahan & Koreksi Perbaikan:</h4>
-                ${mistakesList.length > 0 ? `
-                    <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:25px;">
-                        ${mistakesList.map(m => `
-                            <div style="border-left:4px solid #ea4335; background:#fdf5f5; padding:12px 15px; border-radius:8px;">
-                                <div style="color:#c5221f; font-size:0.95rem;">❌ <strong>Ucapan:</strong> "${m.user || m.original || '-'}"</div>
-                                <div style="color:#137333; font-weight:bold; font-size:0.95rem; margin-top:4px;">✅ <strong>Perbaikan:</strong> "${m.correct || m.corrected || '-'}"</div>
-                                <div style="color:#5f6368; font-size:0.85rem; margin-top:4px;">💡 <em>${m.explanation || m.reason || ''}</em></div>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : `
-                    <div style="background:#f4faf6; border-left:4px solid #34a853; padding:15px; border-radius:8px; color:#137333; font-size:0.95rem; margin-bottom:25px;">
-                        🎉 Masya Allah! Luar biasa, tidak ditemukan kesalahan tata bahasa yang signifikan dalam percakapan Anda!
-                    </div>
-                `}
-
-                <button id="btn-done-speaking" class="action-btn" style="width:100%; background:#1a73e8; color:white; border:none; padding:12px; border-radius:8px; font-weight:bold; cursor:pointer;">Selesai & Latihan Lagi</button>
-            `;
-
-reportDiv.querySelector('#btn-done-speaking').onclick = () => {
-    // Kembali ke menu awal tanpa menghilangkan skor di storage
-    reportDiv.style.display = 'none';
-    setupDiv.style.display = 'block';
-};
-
-        } catch(err) {
-            console.error("Report Error:", err);
-            alert("Sesi latihan selesai.");
-            window.location.reload();
         }
+
+        if (!reportSuccess) {
+            reportData = {
+                mistakes: [
+                    {
+                        user: "Koneksi kurang stabil sewaktu memuat laporan evaluasi.",
+                        correct: "Koneksi Anda akan normal kembali pada latihan berikutnya.",
+                        explanation: "Skor durasi & keaktifan bicara Anda berhasil tercatat. Namun, analisis rinci tata bahasa tidak dapat dimuat karena gangguan sinyal."
+                    }
+                ]
+            };
+        }
+
+        activeDiv.style.display = 'none';
+        reportDiv.style.display = 'block';
+
+        const mistakesList = reportData.mistakes || reportData.corrections || [];
+
+        reportDiv.innerHTML = `
+            <div style="border-bottom:1px solid #eee; padding-bottom:15px; margin-bottom:20px; text-align:center;">
+                <span style="font-size:3rem;">📊</span>
+                <h3 style="margin:10px 0; color:#1a73e8; font-size:1.4rem;">Rapor Evaluasi AI Speaking</h3>
+                <p style="color:#5f6368; font-size:0.95rem; margin:0;">Roleplay: <strong>${currentRole}</strong></p>
+            </div>
+
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:20px; text-align:center;">
+                <div style="background:#f8f9fa; border:1px solid #dadce0; padding:15px; border-radius:10px;">
+                    <div style="font-size:1.2rem; font-weight:bold; color:#202124;">⏱️ ${minsSpent}m ${secsSpent}s</div>
+                    <div style="font-size:0.85rem; color:#5f6368;">Durasi Bicara</div>
+                </div>
+                <div style="background:#f8f9fa; border:1px solid #dadce0; padding:15px; border-radius:10px;">
+                    <div style="font-size:1.2rem; font-weight:bold; color:#202124;">💬 ${userTurnCount} Kali</div>
+                    <div style="font-size:0.85rem; color:#5f6368;">Respon Suara</div>
+                </div>
+            </div>
+
+            <div style="text-align:center; margin-bottom:25px;">
+                <div style="display:inline-block; background:#1a73e8; color:#fff; padding:10px 30px; border-radius:30px; font-weight:bold; font-size:1.3rem; box-shadow:0 3px 8px rgba(26,115,232,0.3);">
+                    Skor Akhir Speaking: ${computedScore} / 100
+                </div>
+            </div>
+
+            <h4 style="color:#ea4335; margin-bottom:12px; font-size:1.1rem;">🛠️ Analisis Kesalahan & Koreksi Perbaikan:</h4>
+            ${mistakesList.length > 0 ? `
+                <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:25px;">
+                    ${mistakesList.map(m => `
+                        <div style="border-left:4px solid #ea4335; background:#fdf5f5; padding:12px 15px; border-radius:8px;">
+                            <div style="color:#c5221f; font-size:0.95rem;">❌ <strong>Ucapan:</strong> "${m.user || m.original || '-'}"</div>
+                            <div style="color:#137333; font-weight:bold; font-size:0.95rem; margin-top:4px;">✅ <strong>Perbaikan:</strong> "${m.correct || m.corrected || '-'}"</div>
+                            <div style="color:#5f6368; font-size:0.85rem; margin-top:4px;">💡 <em>${m.explanation || m.reason || ''}</em></div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : `
+                <div style="background:#f4faf6; border-left:4px solid #34a853; padding:15px; border-radius:8px; color:#137333; font-size:0.95rem; margin-bottom:25px;">
+                    🎉 Masya Allah! Luar biasa, tidak ditemukan kesalahan tata bahasa yang signifikan dalam percakapan Anda!
+                </div>
+            `}
+
+            <button id="btn-done-speaking" class="action-btn" style="width:100%; background:#1a73e8; color:white; border:none; padding:12px; border-radius:8px; font-weight:bold; cursor:pointer;">Selesai & Latihan Lagi</button>
+        `;
+
+        reportDiv.querySelector('#btn-done-speaking').onclick = () => {
+            reportDiv.style.display = 'none';
+            setupDiv.style.display = 'block';
+        };
     };
 }
