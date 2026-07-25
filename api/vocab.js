@@ -18,13 +18,20 @@ export default async function handler(req, res) {
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
     const models = ["gemini-2.5-flash", "gemini-2.5-flash"];
 
-    const prompt = `You are an expert English Language Pedagogy AI.
-Generate a high-frequency daily vocabulary batch containing EXACTLY 50 practical words (CEFR B1-C1) and EXACTLY 20 VARIATED quiz questions testing those words.
+    // Mengambil daftar kata yang harus dihindari dari request body
+    const { exclude = [] } = req.body || {};
 
-The 20 quiz questions MUST be a mix of:
-1. Standard Multiple Choice (Meaning lookup)
-2. Fill-in-the-blank / Sentence Context (e.g., "The team needs to _____ to solve this. [collaborate, encrypted...]")
-3. Word Guessing / Definition Match (e.g., "Which word best matches: 'A goal or target date for finishing work'?")
+    const prompt = `You are an expert English Language Pedagogy AI.
+Generate a high-frequency daily vocabulary batch containing EXACTLY 5 practical words (CEFR B1-C1) and EXACTLY 20 varied quiz questions.
+
+CRITICAL RULES:
+1. Avoid repeating past words. DO NOT generate any of the following words: ${JSON.stringify(exclude)}. Choose entirely different words.
+2. The 20 quiz questions MUST focus EXCLUSIVELY on testing and reinforcing the 5 newly generated words. Do not test any other words outside of these 5 words.
+3. The 20 questions must be distributed as evenly as possible among the 5 words (approximately 4 questions per word).
+4. Question types must be a mix of:
+   - Standard Multiple Choice (Meaning lookup)
+   - Fill-in-the-blank / Sentence Context (e.g., "She needs to _____ to resolve this.")
+   - Word Guessing / Definition Match (e.g., "Which word best matches: 'A goal or target date...'?")
 
 Output MUST be strictly valid JSON without markdown formatting, matching this exact structure:
 {
