@@ -19,6 +19,60 @@ export function renderReading(container) {
     const maxRounds = 10;
     let score = 0;
     let currentTheme = "";
+    let sessionData = null; // Menyimpan data artikel aktif
+
+    // Menyisipkan gaya khusus untuk memposisikan penunjuk kamus (tooltip) secara dinamis
+    const styleId = 'reading-custom-tooltip-styles';
+    if (!document.getElementById(styleId)) {
+        const styleEl = document.createElement('style');
+        styleEl.id = styleId;
+        styleEl.innerHTML = `
+            .reading-container {
+                position: relative; /* Wadah utama harus relatif agar posisi popup absolut bekerja dengan benar */
+            }
+            #dict-popup {
+                position: absolute;
+                background: #2ec4b6 !important;
+                color: #ffffff !important;
+                padding: 6px 14px !important;
+                border-radius: 6px !important;
+                font-size: 0.9rem !important;
+                font-weight: 500 !important;
+                z-index: 1000 !important;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.15) !important;
+                display: none;
+                transform: translate(-50%, -100%);
+                margin-top: -10px;
+                white-space: nowrap;
+                pointer-events: none;
+                transition: left 0.15s ease, top 0.15s ease;
+                border-left: none !important;
+            }
+            #dict-popup::after {
+                content: "";
+                position: absolute;
+                bottom: -6px;
+                left: 50%;
+                transform: translateX(-50%);
+                border-width: 6px 6px 0;
+                border-style: solid;
+                border-color: #2ec4b6 transparent;
+                display: block;
+                width: 0;
+            }
+            .reading-clickable-word {
+                display: inline-block;
+                border-radius: 4px;
+                padding: 0 2px;
+                transition: background-color 0.2s, color 0.2s;
+            }
+            .reading-clickable-word.active-vocab-highlight {
+                background-color: #2ec4b6 !important;
+                color: #ffffff !important;
+            }
+        `;
+        document.head.appendChild(styleEl);
+    }
 
     container.innerHTML = `
         <div class="welcome-section">
@@ -37,9 +91,9 @@ export function renderReading(container) {
             </div>
 
             <div id="reading-zone" style="display:none;">
-                <div id="dict-popup" style="background:#202124; color:#fff; padding:8px 15px; border-radius:20px; font-size:0.9rem; text-align:center; margin-bottom:15px; display:none; font-weight:500; border-left:4px solid var(--primary-color);"></div>
+                <div id="dict-popup"></div>
 
-                <div id="text-article-box" style="background:#fff; border:1px solid #dadce0; padding:25px; border-radius:12px; text-align:left; line-height:1.8; font-size:1.1rem; margin-bottom:25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);"></div>
+                <div id="text-article-box" style="background:#fff; border:1px solid #dadce0; padding:25px; border-radius:12px; text-align:left; line-height:1.8; font-size:1.1rem; margin-bottom:25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position:relative;"></div>
 
                 <div id="quiz-article-box" style="background:#f8f9fa; border:1px solid #dadce0; padding:20px; border-radius:12px; text-align:left;"></div>
                 
@@ -85,7 +139,6 @@ export function renderReading(container) {
         progressDiv.innerText = `📝 Tantangan Bacaan ke-${currentRound} dari ${maxRounds} [Skor: ${score}]`;
 
         try {
-            // PERBAIKAN DI SINI: Menyimpan hasil fetch ke variabel 'res' dan menggunakan variabel 'currentTheme'
             const res = await fetch('/api/reading', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -100,7 +153,6 @@ export function renderReading(container) {
             let rawText = await res.text();
             rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
             
-            // Pembersihan JSON yang aman
             const firstOpen = rawText.indexOf('{');
             const lastClose = rawText.lastIndexOf('}');
             if (firstOpen !== -1 && lastClose !== -1) {
@@ -108,6 +160,7 @@ export function renderReading(container) {
             }
             
             const data = JSON.parse(rawText);
+            sessionData = data; // Simpan ke level scope agar bisa diakses fungsi global
             
             loadingDiv.style.display = 'none';
             readingZone.style.display = 'block';
@@ -126,15 +179,35 @@ export function renderReading(container) {
         }
     }
 
+    // Fungsi pembantu untuk memposisikan tooltip dinamis di atas koordinat target
+    function showTooltipAt(rect, translationText) {
+        dictPopup.innerHTML = translationText;
+        dictPopup.style.display = 'block';
+
+        const containerEl = container.querySelector('.reading-container');
+        const containerRect = containerEl.getBoundingClientRect();
+        
+        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+        // Posisi tengah horizontal elemen target relatif terhadap container utama
+        const targetCenterX = (rect.left - containerRect.left) + (rect.width / 2);
+        // Posisi atas elemen target relatif terhadap container utama
+        const targetTopY = rect.top - containerRect.top;
+
+        dictPopup.style.left = `${targetCenterX}px`;
+        dictPopup.style.top = `${targetTopY}px`;
+    }
+
     function renderInteractiveText(data) {
         const paragraphs = [data.paragraph1, data.paragraph2, data.paragraph3];
         
         const htmlContent = paragraphs.map(para => {
             if (!para) return "";
             const words = para.split(/\s+/);
-            const wrappedWords = words.map(word => {
+            const wrappedWords = words.map((word, idx) => {
                 const cleanWord = word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g,"").toLowerCase();
-                return `<span class="reading-clickable-word" data-clean="${cleanWord}" style="cursor:pointer; padding:2px 1px; border-radius:4px; transition:all 0.2s;">${word}</span>`;
+                return `<span class="reading-clickable-word" data-clean="${cleanWord}" style="cursor:pointer;">${word}</span>`;
             }).join(' ');
             return `<p style="margin-bottom:15px; text-align:justify;">${wrappedWords}</p>`;
         }).join('');
@@ -143,10 +216,26 @@ export function renderReading(container) {
 
         const wordSpans = textArticleBox.querySelectorAll('.reading-clickable-word');
         wordSpans.forEach(span => {
-            span.addEventListener('mouseover', (e) => { e.target.style.background = '#e8f0fe'; });
-            span.addEventListener('mouseout', (e) => { e.target.style.background = 'transparent'; });
+            span.addEventListener('mouseover', (e) => { 
+                if (!e.target.classList.contains('active-vocab-highlight')) {
+                    e.target.style.background = '#e8f0fe'; 
+                }
+            });
+            span.addEventListener('mouseout', (e) => { 
+                if (!e.target.classList.contains('active-vocab-highlight')) {
+                    e.target.style.background = 'transparent'; 
+                }
+            });
             
             span.addEventListener('click', (e) => {
+                e.stopPropagation(); // Cegah hilangnya highlight akibat event click global
+                
+                // Reset highlight kata sebelumnya
+                wordSpans.forEach(w => {
+                    w.classList.remove('active-vocab-highlight');
+                    w.style.background = 'transparent';
+                });
+
                 const targetWord = e.target.getAttribute('data-clean');
                 let translation = "Arti tidak ditemukan dalam mini-dict.";
                 
@@ -158,11 +247,51 @@ export function renderReading(container) {
                     }
                 }
                 
-                dictPopup.style.display = 'block';
-                dictPopup.innerHTML = `🔍 <strong>${e.target.innerText.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g,"")}</strong> &rarr; <span style="color:#8ab4f8;">${translation}</span>`;
+                // Tambahkan kelas highlight aktif pada kata yang diklik
+                e.target.classList.add('active-vocab-highlight');
+                
+                // Ambil koordinat posisi kata yang diklik
+                const rect = e.target.getBoundingClientRect();
+                showTooltipAt(rect, translation);
             });
         });
     }
+
+    // Penanganan pendeteksian seleksi kata/kalimat (drag-highlight manual oleh pengguna)
+    document.addEventListener('selectionchange', () => {
+        const selection = window.getSelection();
+        const selectedText = selection.toString().trim().toLowerCase();
+        
+        if (selectedText.length > 0 && textArticleBox.contains(selection.anchorNode)) {
+            if (sessionData && sessionData.vocabularyMap) {
+                const keys = Object.keys(sessionData.vocabularyMap);
+                const matchedKey = keys.find(k => {
+                    const cleanKey = k.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g,"").toLowerCase();
+                    return cleanKey === selectedText || selectedText.includes(cleanKey);
+                });
+                
+                if (matchedKey) {
+                    const translation = sessionData.vocabularyMap[matchedKey];
+                    const range = selection.getRangeAt(0);
+                    const rect = range.getBoundingClientRect();
+                    
+                    showTooltipAt(rect, translation);
+                }
+            }
+        }
+    });
+
+    // Menutup popup terjemahan dan menghapus highlight saat mengklik di luar area teks
+    document.addEventListener('click', (e) => {
+        if (!textArticleBox.contains(e.target) && e.target !== dictPopup) {
+            dictPopup.style.display = 'none';
+            const wordSpans = textArticleBox.querySelectorAll('.reading-clickable-word');
+            wordSpans.forEach(w => {
+                w.classList.remove('active-vocab-highlight');
+                w.style.background = 'transparent';
+            });
+        }
+    });
 
     function setupQuiz(data) {
         quizArticleBox.innerHTML = `
@@ -224,7 +353,6 @@ export function renderReading(container) {
             
             const finalScore = Math.round((score / maxRounds) * 100);
             
-            // SIMPAN SKOR READING KE GLOBAL
             if (window.updateGlobalScore) {
                 window.updateGlobalScore('reading', finalScore);
             }
