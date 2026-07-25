@@ -33,7 +33,6 @@ export function renderSpeaking(container) {
                 <p style="color:var(--text-muted, #5f6368); font-size:0.85rem; margin-bottom:25px;">Bicaralah aktif dalam Bahasa Inggris. Sistem menghitung durasi dan keaktifan responmu.</p>
                 
                 <div style="display:flex; flex-direction:column; gap:12px; align-items:center;">
-                    <!-- TOMBOL MODE SAKU BARU -->
                     <button id="btn-pocket-mode" class="action-btn" style="background:#f1f3f4; color:#3c4043; border:1px solid #dadce0; padding:10px 20px; border-radius:30px; font-weight:bold; cursor:pointer; font-size:0.9rem; display:flex; align-items:center; gap:8px;">
                         🔒 Masuk Mode Saku (Taruh Saku)
                     </button>
@@ -46,7 +45,7 @@ export function renderSpeaking(container) {
             <div id="speaking-report" style="display:none; text-align:left; background:#fff; border:1px solid #dadce0; border-radius:16px; padding:25px; box-shadow:0 4px 12px rgba(0,0,0,0.05);"></div>
         </div>
 
-        <!-- OVERLAY MODE SAKU (LAYAR HITAM LOCK) -->
+        <!-- OVERLAY MODE SAKU -->
         <div id="pocket-overlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#000000; z-index:99999; justify-content:center; align-items:center; flex-direction:column; color:#3c4043; user-select:none; -webkit-user-select:none;">
             <div style="font-size:4rem; margin-bottom:20px; opacity:0.15; animation: pulse 2s infinite;">🔒</div>
             <p style="color:#4a4a4a; font-size:1.1rem; font-weight:500; margin:0 20px; text-align:center;">Mode Saku Aktif</p>
@@ -75,6 +74,7 @@ export function renderSpeaking(container) {
     let chosenGender = 'female';
     let isListening = false;
     let isCallActive = false; 
+    let isAISpeaking = false; // Flag pengunci suara AI (Simplex Gate)
     let silenceTimer = null;
     const SILENCE_DELAY = 4000; 
 
@@ -141,12 +141,19 @@ export function renderSpeaking(container) {
 
         recognition.onend = () => { 
             isListening = false; 
-            if (isCallActive && !window.speechSynthesis.speaking) {
+            // Restart otomatis hanya jika panggilan aktif & AI sedang tidak bersuara
+            if (isCallActive && !isAISpeaking && !window.speechSynthesis.speaking) {
                 setTimeout(startListeningSafely, 1000);
             }
         };
 
         recognition.onresult = (event) => {
+            // JIKA AI SEDANG BERBICARA / BERPIKIR, ABAIKAN SEMUA INPUT MIC
+            if (isAISpeaking || window.speechSynthesis.speaking) {
+                clearTimeout(silenceTimer);
+                return; 
+            }
+
             clearTimeout(silenceTimer);
             const lastResultIndex = event.results.length - 1;
             const speechToText = event.results[lastResultIndex][0].transcript;
@@ -155,6 +162,10 @@ export function renderSpeaking(container) {
                 statusTxt.innerText = "✍️ Merekam obrolanmu...";
                 silenceTimer = setTimeout(() => {
                     if (recognition) { try { recognition.stop(); } catch(e){} }
+                    
+                    // Kunci sistem agar mic tidak menangkap gema suara AI setelah ini
+                    isAISpeaking = true; 
+                    
                     userTurnCount++;
                     turnsTxt.innerText = `💬 Jumlah Interaksi Suara: ${userTurnCount} kali`;
                     getAIResponse(speechToText);
@@ -172,19 +183,17 @@ export function renderSpeaking(container) {
     }
 
     function startListeningSafely() {
-        if (isCallActive && recognition && !isListening) {
+        if (isCallActive && !isAISpeaking && recognition && !isListening) {
             try { recognition.start(); } catch(err) {}
         }
     }
 
-    // AKTIVASI & DEAKTIVASI MODE SAKU
     pocketBtn.onclick = () => {
         if (isCallActive) {
             pocketOverlay.style.display = 'flex';
         }
     };
 
-    // Deteksi ketukan ganda (double tap) untuk keluar dari Mode Saku
     let lastTap = 0;
     pocketOverlay.addEventListener('click', () => {
         const currentTime = new Date().getTime();
@@ -195,7 +204,6 @@ export function renderSpeaking(container) {
         lastTap = currentTime;
     });
 
-    // Menangani juga event touch untuk sensitivitas layar sentuh HP
     pocketOverlay.addEventListener('touchend', (e) => {
         const currentTime = new Date().getTime();
         const tapDelay = currentTime - lastTap;
@@ -214,6 +222,7 @@ export function renderSpeaking(container) {
         setupDiv.style.display = 'none';
         activeDiv.style.display = 'block';
         isCallActive = true;
+        isAISpeaking = true; // Kunci mic aktif selama inisiasi
         
         await requestWakeLock();
         startTimer();
@@ -221,7 +230,9 @@ export function renderSpeaking(container) {
     };
 
     async function getAIResponse(userText) {
+        isAISpeaking = true; // Kunci mic agar tidak mendengarkan suara speaker saat memproses
         window.speechSynthesis.cancel();
+        
         let aiReply = "";
         let success = false;
         const maxRetries = 3;
@@ -292,8 +303,17 @@ export function renderSpeaking(container) {
         });
 
         if (selectedVoice) utterance.voice = selectedVoice;
-        utterance.onend = () => { startListeningSafely(); };
-        utterance.onerror = () => { startListeningSafely(); };
+        
+        // Lepas kunci mic dan mulai mendengarkan HANYA setelah AI selesai berbicara
+        utterance.onend = () => { 
+            isAISpeaking = false; 
+            startListeningSafely(); 
+        };
+        utterance.onerror = () => { 
+            isAISpeaking = false; 
+            startListeningSafely(); 
+        };
+        
         window.speechSynthesis.speak(utterance);
     }
 
@@ -302,7 +322,8 @@ export function renderSpeaking(container) {
         statusTxt.innerText = "Menganalisis durasi, interaksi, dan kesalahan...";
         clearTimeout(silenceTimer);
         isCallActive = false;
-        pocketOverlay.style.display = 'none'; // Sembunyikan mode saku saat mengakhiri
+        isAISpeaking = false;
+        pocketOverlay.style.display = 'none'; 
         
         if (recognition) {
             try { recognition.onend = null; recognition.stop(); } catch(e){}
