@@ -30,10 +30,11 @@ async function loadGrammarBatch(grammarContent) {
     if (isNeedFetch) {
         grammarContent.innerHTML = `<p style="color:#34a853; font-weight:bold;">🤖 Mengontak AI untuk mengunduh materi Grammar harian... (Cukup 1x sehari)</p>`;
         try {
+            // Mengirimkan payload tanggal hari ini ke API
             const res = await fetch('/api/grammar', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'get-batch' })
+                body: JSON.stringify({ action: 'get-batch', date: today })
             });
             const data = await res.json();
 
