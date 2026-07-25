@@ -74,7 +74,7 @@ export function renderSpeaking(container) {
     let chosenGender = 'female';
     let isListening = false;
     let isCallActive = false; 
-    let isAISpeaking = false; // Flag pengunci suara AI (Simplex Gate)
+    let isAISpeaking = false; 
     let silenceTimer = null;
     const SILENCE_DELAY = 4000; 
 
@@ -141,14 +141,12 @@ export function renderSpeaking(container) {
 
         recognition.onend = () => { 
             isListening = false; 
-            // Restart otomatis hanya jika panggilan aktif & AI sedang tidak bersuara
             if (isCallActive && !isAISpeaking && !window.speechSynthesis.speaking) {
                 setTimeout(startListeningSafely, 1000);
             }
         };
 
         recognition.onresult = (event) => {
-            // JIKA AI SEDANG BERBICARA / BERPIKIR, ABAIKAN SEMUA INPUT MIC
             if (isAISpeaking || window.speechSynthesis.speaking) {
                 clearTimeout(silenceTimer);
                 return; 
@@ -163,9 +161,7 @@ export function renderSpeaking(container) {
                 silenceTimer = setTimeout(() => {
                     if (recognition) { try { recognition.stop(); } catch(e){} }
                     
-                    // Kunci sistem agar mic tidak menangkap gema suara AI setelah ini
                     isAISpeaking = true; 
-                    
                     userTurnCount++;
                     turnsTxt.innerText = `💬 Jumlah Interaksi Suara: ${userTurnCount} kali`;
                     getAIResponse(speechToText);
@@ -222,15 +218,28 @@ export function renderSpeaking(container) {
         setupDiv.style.display = 'none';
         activeDiv.style.display = 'block';
         isCallActive = true;
-        isAISpeaking = true; // Kunci mic aktif selama inisiasi
+        isAISpeaking = true; 
         
+        // INTERVENSI PENTING: Aktivasi awal mic secara paksa saat tombol diklik (User Gesture Context)
+        if (recognition) {
+            try {
+                recognition.start();
+                // Matikan cepat setelah izin aktif, agar tidak bentrok dengan suara pembuka AI
+                setTimeout(() => {
+                    try { recognition.stop(); } catch(e){}
+                }, 400);
+            } catch(e) {
+                console.warn("Handshake mic gagal:", e);
+            }
+        }
+
         await requestWakeLock();
         startTimer();
         await getAIResponse("Hello, let's start our conversation.");
     };
 
     async function getAIResponse(userText) {
-        isAISpeaking = true; // Kunci mic agar tidak mendengarkan suara speaker saat memproses
+        isAISpeaking = true; 
         window.speechSynthesis.cancel();
         
         let aiReply = "";
@@ -248,7 +257,8 @@ export function renderSpeaking(container) {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 10000); 
 
-                const res = await fetch('/api/chat', {
+                // Perbaikan krusial: Mengubah rute pemanggilan dari '/api/chat' ke '/api/speaking'
+                const res = await fetch('/api/speaking', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ 
@@ -304,7 +314,6 @@ export function renderSpeaking(container) {
 
         if (selectedVoice) utterance.voice = selectedVoice;
         
-        // Lepas kunci mic dan mulai mendengarkan HANYA setelah AI selesai berbicara
         utterance.onend = () => { 
             isAISpeaking = false; 
             startListeningSafely(); 
@@ -351,7 +360,8 @@ export function renderSpeaking(container) {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 12000); 
 
-                const res = await fetch('/api/chat', {
+                // Perbaikan krusial: Mengubah rute pemanggilan dari '/api/chat' ke '/api/speaking'
+                const res = await fetch('/api/speaking', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ 
