@@ -18,7 +18,6 @@ export default async function handler(req, res) {
     const activeKey = keys[Math.floor(Math.random() * keys.length)];
     const models = ["gemini-2.5-flash", "gemini-2.5-flash"];
 
-    // Mengambil daftar kata yang harus dihindari dari request body
     const { exclude = [] } = req.body || {};
 
     const prompt = `You are an expert English Language Pedagogy AI.
@@ -26,9 +25,10 @@ Generate a high-frequency daily vocabulary batch containing EXACTLY 5 practical 
 
 CRITICAL RULES:
 1. Avoid repeating past words. DO NOT generate any of the following words: ${JSON.stringify(exclude)}. Choose entirely different words.
-2. The 20 quiz questions MUST focus EXCLUSIVELY on testing and reinforcing the 5 newly generated words. Do not test any other words outside of these 5 words.
-3. The 20 questions must be distributed as evenly as possible among the 5 words (approximately 4 questions per word).
-4. Question types must be a mix of:
+2. For each word, provide an Indonesian-friendly phonetic pronunciation guide (how to pronounce it written in Indonesian spelling, e.g., "Love" -> "Laf", "Religion" -> "relijen", "Collaborate" -> "kolaboret").
+3. The 20 quiz questions MUST focus EXCLUSIVELY on testing and reinforcing the 5 newly generated words. Do not test any other words outside of these 5 words.
+4. The 20 questions must be distributed as evenly as possible among the 5 words (approximately 4 questions per word).
+5. Question types must be a mix of:
    - Standard Multiple Choice (Meaning lookup)
    - Fill-in-the-blank / Sentence Context (e.g., "She needs to _____ to resolve this.")
    - Word Guessing / Definition Match (e.g., "Which word best matches: 'A goal or target date...'?")
@@ -37,7 +37,12 @@ Output MUST be strictly valid JSON without markdown formatting, matching this ex
 {
   "theme": "High-Frequency Practical Vocab",
   "words": [
-    { "word": "Collaborate", "meaning": "Bekerja sama", "example": "We need to collaborate." }
+    { 
+      "word": "Collaborate", 
+      "pronunciation": "kolaboret",
+      "meaning": "Bekerja sama", 
+      "example": "We need to collaborate." 
+    }
   ],
   "quizzes": [
     {
