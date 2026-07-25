@@ -14,6 +14,7 @@ export default async function handler(req, res) {
 
     const bodyData = req.body || {};
     
+    // SISTEM PENGACAK TEMA ARTIKEL
     const availableThemes = [
         "Space Exploration & Mars Rovers", 
         "Artificial Intelligence in Daily Life", 
@@ -29,6 +30,7 @@ export default async function handler(req, res) {
         "Culinary Traditions in Asia"
     ];
 
+    // Jika frontend tidak mengirimkan tema spesifik, pilihkan tema acak
     const selectedTheme = bodyData.theme || availableThemes[Math.floor(Math.random() * availableThemes.length)];
     const seed = Date.now() + "_" + Math.random();
 
@@ -61,7 +63,7 @@ You MUST output ONLY valid JSON format using this exact structure without any ma
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { responseMimeType: "application/json"" }
+                    generationConfig: { responseMimeType: "application/json" }
                 })
             });
 
@@ -91,6 +93,9 @@ You MUST output ONLY valid JSON format using this exact structure without any ma
 
     console.error("Error di API Reading (Pindah ke dynamic fallback):", lastError);
 
+    // ==========================================
+    // FALLBACK ARTIKEL BACAAN BERVARIASI
+    // ==========================================
     const fallbackArticles = [
         {
             theme: "Space & Mars",
