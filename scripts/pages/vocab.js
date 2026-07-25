@@ -18,7 +18,7 @@ export function renderVocab(container) {
 
 async function loadVocabBatch(vocabContent) {
     const today = new Date().toISOString().split('T')[0];
-    const STORAGE_KEY = 'inggrisku_vocab_daily_5';
+    const STORAGE_KEY = 'inggrisku_vocab_daily_5_v2'; // Diperbarui untuk struktur data baru dengan pelafalan
     const SEEN_WORDS_KEY = 'inggrisku_seen_vocab';
 
     let localBatch = null;
@@ -26,13 +26,11 @@ async function loadVocabBatch(vocabContent) {
         localBatch = JSON.parse(localStorage.getItem(STORAGE_KEY));
     } catch (e) {}
 
-    // Ambil daftar kata yang sudah dipelajari sebelumnya agar tidak berulang
     let seenWords = [];
     try {
         seenWords = JSON.parse(localStorage.getItem(SEEN_WORDS_KEY)) || [];
     } catch (e) {}
 
-    // Ambil data baru jika belum ada, beda hari, atau kuis kurang dari 20
     const isNeedFetch = !localBatch || localBatch.date !== today || !localBatch.words || localBatch.words.length < 5 || !localBatch.quizzes || localBatch.quizzes.length < 20;
 
     if (isNeedFetch) {
@@ -43,7 +41,7 @@ async function loadVocabBatch(vocabContent) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     action: 'get-batch-5',
-                    exclude: seenWords // Kirim daftar kata yang dihindari
+                    exclude: seenWords
                 })
             });
             const data = await res.json();
@@ -52,7 +50,6 @@ async function loadVocabBatch(vocabContent) {
                 throw new Error(data.error || "Gagal mendapatkan data dari AI");
             }
 
-            // Simpan data batch hari ini
             localBatch = {
                 date: today,
                 words: data.words.slice(0, 5),
@@ -60,11 +57,9 @@ async function loadVocabBatch(vocabContent) {
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(localBatch));
 
-            // Tambahkan kata baru hari ini ke daftar yang sudah pernah dipelajari
             const newWords = data.words.map(w => w.word.toLowerCase());
             const updatedSeenWords = Array.from(new Set([...seenWords, ...newWords]));
             
-            // Batasi ukuran history seenWords (misal maksimal 150 kata) agar tidak memenuhi memori browser
             if (updatedSeenWords.length > 150) {
                 updatedSeenWords.splice(0, updatedSeenWords.length - 150);
             }
@@ -83,8 +78,9 @@ async function loadVocabBatch(vocabContent) {
     html += `<h3 style="color:#1a73e8; margin-top:0;">🌟 5 Kosakata Unggulan Hari Ini</h3><ol style="padding-left:20px; line-height:1.8;">`;
     
     displayWords.forEach(w => {
+        const pronText = w.pronunciation ? ` <span style="color:#5f6368; font-style:italic; font-weight:normal; font-size:0.9rem;">(${w.pronunciation})</span>` : '';
         html += `<li style="margin-bottom:12px;">
-            <strong style="color:#1a73e8; font-size:1.05rem;">${w.word}</strong>: ${w.meaning}
+            <strong style="color:#1a73e8; font-size:1.05rem;">${w.word}</strong>${pronText}: ${w.meaning}
             <br><small style="color:#5f6368;">Contoh: <em>"${w.example}"</em></small>
         </li>`;
     });
@@ -107,7 +103,6 @@ function renderQuizSystem(quizzes, scoreKey, container) {
     function showQuestion() {
         const q = quizzes[currentIndex];
         
-        // Custom Badge Tipe Soal
         let badgeColor = "#1a73e8";
         let badgeLabel = "💡 Tebak Arti";
         if (q.type === 'fill-in-blank') {
