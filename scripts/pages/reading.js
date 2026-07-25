@@ -19,20 +19,20 @@ export function renderReading(container) {
     const maxRounds = 10;
     let score = 0;
     let currentTheme = "";
-    let sessionData = null; // Menyimpan data artikel aktif
+    let sessionData = null; // Menyimpan data artikel aktif untuk pelacakan dinamis
 
-    // Menyisipkan gaya khusus untuk memposisikan penunjuk kamus (tooltip) secara dinamis
+    // Menyisipkan CSS untuk mengatur agar popup kamus melayang tepat di atas teks
     const styleId = 'reading-custom-tooltip-styles';
     if (!document.getElementById(styleId)) {
         const styleEl = document.createElement('style');
         styleEl.id = styleId;
         styleEl.innerHTML = `
             .reading-container {
-                position: relative; /* Wadah utama harus relatif agar posisi popup absolut bekerja dengan benar */
+                position: relative; /* Container harus relatif agar penempatan absolut bekerja */
             }
             #dict-popup {
                 position: absolute;
-                background: #2ec4b6 !important;
+                background: #2ec4b6 !important; /* Warna toska/hijau seperti di gambar */
                 color: #ffffff !important;
                 padding: 6px 14px !important;
                 border-radius: 6px !important;
@@ -64,7 +64,7 @@ export function renderReading(container) {
                 display: inline-block;
                 border-radius: 4px;
                 padding: 0 2px;
-                transition: background-color 0.2s, color 0.2s;
+                transition: background-color 0.15s, color 0.15s;
             }
             .reading-clickable-word.active-vocab-highlight {
                 background-color: #2ec4b6 !important;
@@ -160,7 +160,7 @@ export function renderReading(container) {
             }
             
             const data = JSON.parse(rawText);
-            sessionData = data; // Simpan ke level scope agar bisa diakses fungsi global
+            sessionData = data; // Simpan ke level scope halaman
             
             loadingDiv.style.display = 'none';
             readingZone.style.display = 'block';
@@ -171,15 +171,17 @@ export function renderReading(container) {
         } catch (err) {
             console.error("Error Reading Session:", err);
             loadingDiv.style.display = 'none';
+            readingZone.style.display = 'block'; // Diaktifkan agar box informasi eror & tombol retry terlihat oleh pengguna
             quizArticleBox.innerHTML = `
                 <p style="color:red; text-align:center;">Gagal menyusun modul reading. Mari kita coba buat ulang.</p>
                 <button id="btn-retry-reading" class="action-btn" style="margin:10px auto; display:block;">🔄 Muat Ulang</button>
             `;
-            container.querySelector('#btn-retry-reading').onclick = loadReadingSession;
+            const retryBtn = container.querySelector('#btn-retry-reading');
+            if (retryBtn) retryBtn.onclick = loadReadingSession;
         }
     }
 
-    // Fungsi pembantu untuk memposisikan tooltip dinamis di atas koordinat target
+    // Menghitung posisi absolut tooltip tepat di atas koordinat elemen target
     function showTooltipAt(rect, translationText) {
         dictPopup.innerHTML = translationText;
         dictPopup.style.display = 'block';
@@ -187,12 +189,9 @@ export function renderReading(container) {
         const containerEl = container.querySelector('.reading-container');
         const containerRect = containerEl.getBoundingClientRect();
         
-        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-
-        // Posisi tengah horizontal elemen target relatif terhadap container utama
+        // Tentukan titik tengah horizontal target relatif terhadap container
         const targetCenterX = (rect.left - containerRect.left) + (rect.width / 2);
-        // Posisi atas elemen target relatif terhadap container utama
+        // Tentukan batas atas target relatif terhadap container
         const targetTopY = rect.top - containerRect.top;
 
         dictPopup.style.left = `${targetCenterX}px`;
@@ -205,7 +204,7 @@ export function renderReading(container) {
         const htmlContent = paragraphs.map(para => {
             if (!para) return "";
             const words = para.split(/\s+/);
-            const wrappedWords = words.map((word, idx) => {
+            const wrappedWords = words.map(word => {
                 const cleanWord = word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g,"").toLowerCase();
                 return `<span class="reading-clickable-word" data-clean="${cleanWord}" style="cursor:pointer;">${word}</span>`;
             }).join(' ');
@@ -228,9 +227,9 @@ export function renderReading(container) {
             });
             
             span.addEventListener('click', (e) => {
-                e.stopPropagation(); // Cegah hilangnya highlight akibat event click global
+                e.stopPropagation(); // Mencegah event click global langsung menutup popup
                 
-                // Reset highlight kata sebelumnya
+                // Reset semua sorotan aktif sebelumnya
                 wordSpans.forEach(w => {
                     w.classList.remove('active-vocab-highlight');
                     w.style.background = 'transparent';
@@ -247,22 +246,27 @@ export function renderReading(container) {
                     }
                 }
                 
-                // Tambahkan kelas highlight aktif pada kata yang diklik
+                // Aktifkan highlight kata terpilih
                 e.target.classList.add('active-vocab-highlight');
                 
-                // Ambil koordinat posisi kata yang diklik
                 const rect = e.target.getBoundingClientRect();
                 showTooltipAt(rect, translation);
             });
         });
     }
 
-    // Penanganan pendeteksian seleksi kata/kalimat (drag-highlight manual oleh pengguna)
-    document.addEventListener('selectionchange', () => {
+    // Mendeteksi seleksi manual atau drag susunan kalimat oleh pengguna
+    const onSelectionChange = () => {
+        // Hindari eksekusi jika kontainer telah dihapus dari layar untuk mencegah penumpukan memori
+        if (!textArticleBox || !textArticleBox.isConnected) {
+            document.removeEventListener('selectionchange', onSelectionChange);
+            return;
+        }
+
         const selection = window.getSelection();
         const selectedText = selection.toString().trim().toLowerCase();
         
-        if (selectedText.length > 0 && textArticleBox.contains(selection.anchorNode)) {
+        if (selectedText.length > 0 && selection.anchorNode && textArticleBox.contains(selection.anchorNode)) {
             if (sessionData && sessionData.vocabularyMap) {
                 const keys = Object.keys(sessionData.vocabularyMap);
                 const matchedKey = keys.find(k => {
@@ -279,11 +283,12 @@ export function renderReading(container) {
                 }
             }
         }
-    });
+    };
+    document.addEventListener('selectionchange', onSelectionChange);
 
-    // Menutup popup terjemahan dan menghapus highlight saat mengklik di luar area teks
-    document.addEventListener('click', (e) => {
-        if (!textArticleBox.contains(e.target) && e.target !== dictPopup) {
+    // Menutup popup terjemahan saat pengguna mengklik area di luar kotak bacaan
+    container.addEventListener('click', (e) => {
+        if (textArticleBox && !textArticleBox.contains(e.target) && e.target !== dictPopup) {
             dictPopup.style.display = 'none';
             const wordSpans = textArticleBox.querySelectorAll('.reading-clickable-word');
             wordSpans.forEach(w => {
@@ -353,6 +358,7 @@ export function renderReading(container) {
             
             const finalScore = Math.round((score / maxRounds) * 100);
             
+            // SIMPAN SKOR READING KE GLOBAL
             if (window.updateGlobalScore) {
                 window.updateGlobalScore('reading', finalScore);
             }
