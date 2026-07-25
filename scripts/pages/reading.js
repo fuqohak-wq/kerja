@@ -19,20 +19,20 @@ export function renderReading(container) {
     const maxRounds = 10;
     let score = 0;
     let currentTheme = "";
-    let sessionData = null; // Menyimpan data artikel aktif untuk pelacakan dinamis
+    let sessionData = null; // Menyimpan data artikel aktif
 
-    // Menyisipkan CSS untuk mengatur agar popup kamus melayang tepat di atas teks
+    // Gaya CSS dinamis untuk tampilan kamus melayang
     const styleId = 'reading-custom-tooltip-styles';
     if (!document.getElementById(styleId)) {
         const styleEl = document.createElement('style');
         styleEl.id = styleId;
         styleEl.innerHTML = `
             .reading-container {
-                position: relative; /* Container harus relatif agar penempatan absolut bekerja */
+                position: relative;
             }
             #dict-popup {
                 position: absolute;
-                background: #2ec4b6 !important; /* Warna toska/hijau seperti di gambar */
+                background: #2ec4b6 !important;
                 color: #ffffff !important;
                 padding: 6px 14px !important;
                 border-radius: 6px !important;
@@ -160,7 +160,7 @@ export function renderReading(container) {
             }
             
             const data = JSON.parse(rawText);
-            sessionData = data; // Simpan ke level scope halaman
+            sessionData = data;
             
             loadingDiv.style.display = 'none';
             readingZone.style.display = 'block';
@@ -171,7 +171,7 @@ export function renderReading(container) {
         } catch (err) {
             console.error("Error Reading Session:", err);
             loadingDiv.style.display = 'none';
-            readingZone.style.display = 'block'; // Diaktifkan agar box informasi eror & tombol retry terlihat oleh pengguna
+            readingZone.style.display = 'block';
             quizArticleBox.innerHTML = `
                 <p style="color:red; text-align:center;">Gagal menyusun modul reading. Mari kita coba buat ulang.</p>
                 <button id="btn-retry-reading" class="action-btn" style="margin:10px auto; display:block;">🔄 Muat Ulang</button>
@@ -181,17 +181,14 @@ export function renderReading(container) {
         }
     }
 
-    // Menghitung posisi absolut tooltip tepat di atas koordinat elemen target
     function showTooltipAt(rect, translationText) {
         dictPopup.innerHTML = translationText;
         dictPopup.style.display = 'block';
 
         const containerEl = container.querySelector('.reading-container');
         const containerRect = containerEl.getBoundingClientRect();
-        
-        // Tentukan titik tengah horizontal target relatif terhadap container
+
         const targetCenterX = (rect.left - containerRect.left) + (rect.width / 2);
-        // Tentukan batas atas target relatif terhadap container
         const targetTopY = rect.top - containerRect.top;
 
         dictPopup.style.left = `${targetCenterX}px`;
@@ -226,18 +223,18 @@ export function renderReading(container) {
                 }
             });
             
-            span.addEventListener('click', (e) => {
-                e.stopPropagation(); // Mencegah event click global langsung menutup popup
+            span.addEventListener('click', async (e) => {
+                e.stopPropagation();
                 
-                // Reset semua sorotan aktif sebelumnya
                 wordSpans.forEach(w => {
                     w.classList.remove('active-vocab-highlight');
                     w.style.background = 'transparent';
                 });
 
                 const targetWord = e.target.getAttribute('data-clean');
-                let translation = "Arti tidak ditemukan dalam mini-dict.";
+                let translation = "";
                 
+                // 1. Coba cari di kamus bawaan AI terlebih dahulu
                 if (data.vocabularyMap) {
                     const keys = Object.keys(data.vocabularyMap);
                     const matchedKey = keys.find(k => targetWord.includes(k.toLowerCase()) || k.toLowerCase().includes(targetWord));
@@ -246,47 +243,82 @@ export function renderReading(container) {
                     }
                 }
                 
-                // Aktifkan highlight kata terpilih
                 e.target.classList.add('active-vocab-highlight');
-                
                 const rect = e.target.getBoundingClientRect();
+
+                // 2. Jika tidak ada di kamus bawaan, terjemahkan otomatis menggunakan API cadangan
+                if (!translation) {
+                    showTooltipAt(rect, "⏳ Menerjemahkan...");
+                    try {
+                        const translateRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(targetWord)}&langpair=en|id`);
+                        if (translateRes.ok) {
+                            const translateData = await translateRes.json();
+                            const translatedText = translateData.responseData?.translatedText;
+                            if (translatedText && translatedText.toLowerCase() !== targetWord.toLowerCase()) {
+                                translation = translatedText;
+                            }
+                        }
+                    } catch (err) {
+                        console.warn("Gagal menggunakan kamus otomatis:", err);
+                    }
+                }
+
+                if (!translation) {
+                    translation = "Arti tidak ditemukan.";
+                }
+                
                 showTooltipAt(rect, translation);
             });
         });
-    }
 
-    // Mendeteksi seleksi manual atau drag susunan kalimat oleh pengguna
-    const onSelectionChange = () => {
-        // Hindari eksekusi jika kontainer telah dihapus dari layar untuk mencegah penumpukan memori
-        if (!textArticleBox || !textArticleBox.isConnected) {
-            document.removeEventListener('selectionchange', onSelectionChange);
-            return;
-        }
+        // 3. Menangani penyeleksian susunan kalimat (drag/highlight manual)
+        textArticleBox.addEventListener('mouseup', async () => {
+            const selection = window.getSelection();
+            const selectedText = selection.toString().trim();
+            
+            if (selectedText.length > 0 && selection.anchorNode && textArticleBox.contains(selection.anchorNode)) {
+                let translation = "";
+                const rects = selection.getRangeAt(0).getClientRects();
+                if (rects.length === 0) return;
+                const rect = rects[0];
 
-        const selection = window.getSelection();
-        const selectedText = selection.toString().trim().toLowerCase();
-        
-        if (selectedText.length > 0 && selection.anchorNode && textArticleBox.contains(selection.anchorNode)) {
-            if (sessionData && sessionData.vocabularyMap) {
-                const keys = Object.keys(sessionData.vocabularyMap);
-                const matchedKey = keys.find(k => {
-                    const cleanKey = k.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g,"").toLowerCase();
-                    return cleanKey === selectedText || selectedText.includes(cleanKey);
-                });
-                
-                if (matchedKey) {
-                    const translation = sessionData.vocabularyMap[matchedKey];
-                    const range = selection.getRangeAt(0);
-                    const rect = range.getBoundingClientRect();
+                if (sessionData && sessionData.vocabularyMap) {
+                    const keys = Object.keys(sessionData.vocabularyMap);
+                    const matchedKey = keys.find(k => {
+                        const cleanKey = k.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g,"").toLowerCase();
+                        return cleanKey === selectedText.toLowerCase() || selectedText.toLowerCase().includes(cleanKey);
+                    });
                     
+                    if (matchedKey) {
+                        translation = sessionData.vocabularyMap[matchedKey];
+                    }
+                }
+
+                if (!translation) {
+                    showTooltipAt(rect, "⏳ Menerjemahkan...");
+                    try {
+                        const translateRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(selectedText)}&langpair=en|id`);
+                        if (translateRes.ok) {
+                            const translateData = await translateRes.json();
+                            const translatedText = translateData.responseData?.translatedText;
+                            if (translatedText && translatedText.toLowerCase() !== selectedText.toLowerCase()) {
+                                translation = translatedText;
+                            }
+                        }
+                    } catch (err) {
+                        console.warn("Gagal menggunakan kamus otomatis:", err);
+                    }
+                }
+
+                if (translation) {
                     showTooltipAt(rect, translation);
+                } else {
+                    showTooltipAt(rect, "Arti tidak ditemukan.");
                 }
             }
-        }
-    };
-    document.addEventListener('selectionchange', onSelectionChange);
+        });
+    }
 
-    // Menutup popup terjemahan saat pengguna mengklik area di luar kotak bacaan
     container.addEventListener('click', (e) => {
         if (textArticleBox && !textArticleBox.contains(e.target) && e.target !== dictPopup) {
             dictPopup.style.display = 'none';
@@ -358,7 +390,6 @@ export function renderReading(container) {
             
             const finalScore = Math.round((score / maxRounds) * 100);
             
-            // SIMPAN SKOR READING KE GLOBAL
             if (window.updateGlobalScore) {
                 window.updateGlobalScore('reading', finalScore);
             }
