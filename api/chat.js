@@ -1,3 +1,17 @@
+// Fungsi pembantu untuk membatasi waktu tunggu fetch eksternal
+async function fetchWithTimeout(url, options, timeout = 7000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        return response;
+    } catch (error) {
+        clearTimeout(id);
+        throw error;
+    }
+}
+
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -6,7 +20,7 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Metode tidak diizinkan.' });
 
-    // Collect all available API keys
+    // Mengumpulkan semua API Key yang tersedia
     const keys = [
         process.env.GEMINI_KEY_1,
         process.env.GEMINI_KEY_2,
@@ -46,12 +60,12 @@ Analyze the conversation history provided and output ONLY a valid JSON object wi
   ]
 }`;
 
-        // Smart Fallover: Coba setiap Key x Model sampai berhasil
+        // Smart Failover: Mencoba setiap Key x Model
         for (const apiKey of keys) {
             for (const modelName of models) {
                 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
                 try {
-                    const response = await fetch(GEMINI_API_URL, {
+                    const response = await fetchWithTimeout(GEMINI_API_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -62,13 +76,12 @@ Analyze the conversation history provided and output ONLY a valid JSON object wi
                             systemInstruction: { parts: [{ text: systemInstruction }] },
                             generationConfig: { responseMimeType: "application/json" }
                         })
-                    });
+                    }, 8000); // Timeout 8 detik untuk laporan evaluasi
 
                     if (response.ok) {
                         const data = await response.json();
                         let text = data.candidates?.[0]?.content?.parts?.[0]?.text;
                         if (text) {
-                            // Cleaning Markdown if present
                             text = text.replace(/```json/gi, "").replace(/```/g, "").trim();
                             const firstBrace = text.indexOf('{');
                             const lastBrace = text.lastIndexOf('}');
@@ -84,7 +97,7 @@ Analyze the conversation history provided and output ONLY a valid JSON object wi
             }
         }
 
-        // Fallback jika semua API Key limit
+        // Fallback jika semua API Key limit atau terputus
         return res.status(200).json({
             overall: 80, fluency: 80, grammar: 80, pronunciation: 80, vocabulary: 80,
             mistakes: []
@@ -114,7 +127,6 @@ Analyze the conversation history provided and output ONLY a valid JSON object wi
         });
     }
 
-    // Tambahkan pesan paling baru dari user
     chatContents.push({
         role: 'user',
         parts: [{ text: currentMessage }]
@@ -129,13 +141,13 @@ Rules:
 
     let apiErrorDetail = "";
 
-    // Smart Rotation: Coba Key 1 -> Key 2 -> Key 3
+    // Smart Rotation dengan batas timeout lebih cepat (6 detik) per kunci
     for (const apiKey of keys) {
         for (const modelName of models) {
             const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
             try {
-                const response = await fetch(GEMINI_API_URL, {
+                const response = await fetchWithTimeout(GEMINI_API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -143,13 +155,13 @@ Rules:
                         systemInstruction: { parts: [{ text: systemPrompt }] },
                         generationConfig: { temperature: 0.7 }
                     })
-                });
+                }, 6000); // 6 detik batas timeout respon obrolan
 
                 if (!response.ok) {
                     const errJson = await response.json().catch(() => ({}));
                     apiErrorDetail = errJson.error?.message || `HTTP ${response.status}`;
                     console.warn(`[Chat Failover] Key ...${apiKey.slice(-4)} (${modelName}) gagal: ${apiErrorDetail}`);
-                    continue; // Pindah ke key/model berikutnya jika ini limit
+                    continue; 
                 }
 
                 const data = await response.json();
@@ -165,9 +177,9 @@ Rules:
         }
     }
 
-    // Jika semua key benar-benar habis/error
+    // Jika seluruh skenario cadangan API gagal, berikan respon ramah secara lokal
     return res.status(500).json({ 
         error: `Gagal terhubung ke AI Gemini: ${apiErrorDetail}`,
-        reply: "Sorry, I had trouble hearing you clearly. Could you please repeat that?" 
+        reply: "I see what you mean. That is quite interesting, could you share a bit more about it?" 
     });
 }
