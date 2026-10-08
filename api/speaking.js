@@ -32,7 +32,7 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: "API Key tidak ditemukan di environment variables." });
     }
 
-    const models = ["gemini-1.5-flash", "gemini-2.5-flash"];
+    const models = ["gemini-3.5-flash", "gemini-2.5-flash"];
     const { message, history, roleplay, isFinalReport } = req.body || {};
     const currentMessage = String(message || "").trim();
     const cleanRoleplay = String(roleplay || "English Partner").trim();
