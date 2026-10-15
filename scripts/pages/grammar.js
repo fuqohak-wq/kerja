@@ -25,33 +25,62 @@ async function loadGrammarBatch(grammarContent) {
         localBatch = JSON.parse(localStorage.getItem(STORAGE_KEY));
     } catch (e) {}
 
-    const isNeedFetch = !localBatch || localBatch.date !== today || !localBatch.topics || localBatch.topics.length < 2;
+    const isNeedFetch = !localBatch || localBatch.date !== today || !localBatch.topics || localBatch.topics.length === 0;
 
     if (isNeedFetch) {
-        grammarContent.innerHTML = `<p style="color:#34a853; font-weight:bold;">🤖 Mengontak AI untuk mengunduh materi Grammar harian... (Cukup 1x sehari)</p>`;
-        try {
-            // Mengirimkan payload tanggal hari ini ke API
-            const res = await fetch('/api/grammar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'get-batch', date: today })
-            });
-            const data = await res.json();
+        grammarContent.innerHTML = `<p style="color:#34a853; font-weight:bold;" id="grammar-status-text">🤖 Mengontak AI untuk mengunduh materi Grammar harian...</p>`;
+        
+        const maxRetries = 2;
+        let attempt = 0;
+        let success = false;
 
-            if (!res.ok || !data.topics || data.topics.length === 0) {
-                throw new Error(data.error || "Gagal mendapatkan data dari AI");
+        while (attempt <= maxRetries && !success) {
+            try {
+                attempt++;
+                const statusEl = grammarContent.querySelector('#grammar-status-text');
+                if (statusEl && attempt > 1) {
+                    statusEl.innerText = `🤖 Menghubungkan ulang ke AI Grammar (Percobaan ${attempt}/${maxRetries + 1})...`;
+                }
+
+                const res = await fetch('/api/grammar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'get-batch', date: today })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok || !data.topics || data.topics.length === 0) {
+                    throw new Error(data.error || "Gagal mendapatkan data dari AI");
+                }
+
+                localBatch = {
+                    date: today,
+                    topics: data.topics,
+                    quizzes: data.quizzes || []
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(localBatch));
+                success = true;
+
+            } catch (err) {
+                console.warn(`[Grammar Retry Warning] Percobaan ke-${attempt} gagal:`, err.message);
+                if (attempt > maxRetries) {
+                    grammarContent.innerHTML = `
+                        <div style="padding:15px; background:#fdf5f5; border:1px solid #f5c6cb; border-radius:8px; color:#721c24;">
+                            <p style="margin:0 0 10px 0; font-weight:bold;">⚠️ Kendala Koneksi AI</p>
+                            <p style="margin:0 0 15px 0; font-size:0.9rem;">${err.message}</p>
+                            <button id="btn-reload-grammar" style="background:#d93025; color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-weight:bold;">🔄 Coba Lagi</button>
+                        </div>
+                    `;
+                    const btnReload = grammarContent.querySelector('#btn-reload-grammar');
+                    if (btnReload) {
+                        btnReload.onclick = () => loadGrammarBatch(grammarContent);
+                    }
+                    return;
+                } else {
+                    await new Promise(r => setTimeout(r, 1000));
+                }
             }
-
-            localBatch = {
-                date: today,
-                topics: data.topics,
-                quizzes: data.quizzes || []
-            };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(localBatch));
-
-        } catch (err) {
-            grammarContent.innerHTML = `<p style="color:#d93025;">⚠️ Gagal memuat AI: ${err.message}. Silakan coba lagi.</p>`;
-            return;
         }
     }
 
@@ -95,7 +124,7 @@ function renderQuizSystem(quizzes, scoreKey, container) {
                 <p style="font-size:0.85rem; color:#34a853; font-weight:bold; margin:0 0 5px 0;">🎯 Soal Kuis (${currentIndex + 1}/${quizzes.length})</p>
                 <p style="margin:0 0 12px 0; font-weight:bold; font-size:1rem; color:#202124;">${q.question}</p>
                 <div style="display:flex; flex-direction:column; gap:8px;">
-                    ${q.options.map(o => `<button class="opt-btn" data-val="${o}" style="text-align:left; padding:10px 12px; background:#fff; border:1px solid #ccc; border-radius:8px; cursor:pointer; font-size:0.95rem;">${o}</button>`).join('')}
+                    ${q.options.map(o => `<button class="opt-btn" data-val="${o.replace(/"/g, '&quot;')}" style="text-align:left; padding:10px 12px; background:#fff; border:1px solid #ccc; border-radius:8px; cursor:pointer; font-size:0.95rem;">${o}</button>`).join('')}
                 </div>
                 <div id="expl-box" style="margin-top:12px;"></div>
                 <button id="btn-next-q" style="display:none; margin-top:15px; background:#34a853; color:white; border:none; padding:8px 20px; border-radius:6px; cursor:pointer; float:right; font-weight:bold;">Lanjut ➡️</button>
@@ -107,16 +136,16 @@ function renderQuizSystem(quizzes, scoreKey, container) {
         btns.forEach(btn => {
             btn.onclick = (e) => {
                 btns.forEach(b => b.disabled = true);
-                const val = e.target.getAttribute('data-val');
+                const val = e.currentTarget.getAttribute('data-val');
 
                 if (val === q.answer) {
                     correctCount++;
-                    e.target.style.background = '#e6f4ea';
-                    e.target.style.borderColor = '#34a853';
+                    e.currentTarget.style.background = '#e6f4ea';
+                    e.currentTarget.style.borderColor = '#34a853';
                     container.querySelector('#expl-box').innerHTML = `<div style="color:#137333; font-size:0.9rem;">🎉 <strong>Benar!</strong> ${q.explanation || ''}</div>`;
                 } else {
-                    e.target.style.background = '#fce8e6';
-                    e.target.style.borderColor = '#ea4335';
+                    e.currentTarget.style.background = '#fce8e6';
+                    e.currentTarget.style.borderColor = '#ea4335';
                     container.querySelector('#expl-box').innerHTML = `<div style="color:#c5221f; font-size:0.9rem;">❌ <strong>Salah.</strong> Jawaban tepat: <strong>${q.answer}</strong>. ${q.explanation || ''}</div>`;
                 }
                 container.querySelector('#btn-next-q').style.display = 'block';
@@ -136,7 +165,7 @@ function renderQuizSystem(quizzes, scoreKey, container) {
                     <div style="text-align:center; padding:20px; background:#e6f4ea; border-radius:12px; color:#137333;">
                         <h3 style="margin:0 0 10px 0;">🎉 Selesai Latihan Grammar!</h3>
                         <p style="font-size:1.4rem; font-weight:bold; margin:5px 0;">Skor Kamu: ${score} / 100</p>
-                        <p style="font-size:0.85rem; color:#5f6368; margin:0;">Nilai ini telah tersimpan dan siap dikirim ke Laporan Harian (B6).</p>
+                        <p style="font-size:0.85rem; color:#5f6368; margin:0;">Nilai ini telah tersimpan dan siap dikirim ke Laporan Harian.</p>
                     </div>
                 `;
             }
