@@ -6,6 +6,7 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Metode tidak diizinkan.' });
 
+    // 1. Kumpulkan semua API Key yang tersedia
     const keys = [
         process.env.GEMINI_KEY_1, 
         process.env.GEMINI_KEY_2, 
@@ -13,30 +14,25 @@ export default async function handler(req, res) {
         process.env.GEMINI_API_KEY
     ].filter(Boolean);
 
-    if (keys.length === 0) return res.status(500).json({ error: "API Key tidak ditemukan." });
+    if (keys.length === 0) return res.status(500).json({ error: "API Key tidak ditemukan di Environment Variables." });
 
-    const activeKey = keys[Math.floor(Math.random() * keys.length)];
-    const models = ["gemini-3.5-flash", "gemini-2.5-flash"];
+    // Model resmi dan teruji
+    const models = ["gemini-2.5-flash", "gemini-1.5-flash"];
 
-    // Mengambil tanggal dari body request atau menggunakan tanggal server jika kosong
     let requestDate = "";
     try {
         const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
         if (body && body.date) {
             requestDate = body.date;
         }
-    } catch (e) {
-        // Abaikan error parsing jika ada
-    }
+    } catch (e) {}
 
     if (!requestDate) {
         requestDate = new Date().toISOString().split('T')[0];
     }
 
-    // Mendapatkan angka hari (1-31) untuk rotasi tema harian
     const dayOfMonth = new Date(requestDate).getDate() || 1;
 
-    // Daftar 31 tema tata bahasa yang berbeda agar materi bervariasi setiap hari
     const grammarThemes = [
         "Advanced Future Forms & Temporal Clauses (Future Perfect, Future in the Past)",
         "Modal Verbs of Obligation, Deduction, and Speculation (must have, should have, might have)",
@@ -74,13 +70,11 @@ export default async function handler(req, res) {
     const activeTheme = grammarThemes[(dayOfMonth - 1) % grammarThemes.length];
 
     const prompt = `You are a professional English AI Tutor.
-Today's Date: ${requestDate}
-Today's Target Theme Focus: ${activeTheme}
+Today's Target Focus: ${activeTheme}
 
-Generate a daily batch containing 10 essential Grammar topics and 20 multiple-choice quiz questions.
-To ensure variety, focus at least 5 topics and 10 quizzes on today's target theme: "${activeTheme}". The rest can be other intermediate/advanced topics. Avoid repeating basic topics like standard 'Simple Present' or 'Subject Pronouns' unless they involve high-level exceptions.
+Generate a concise grammar module containing 4 core Grammar topics and 6 multiple-choice quiz questions focusing on "${activeTheme}".
 
-Output MUST be strictly valid JSON without markdown formatting, matching this exact structure:
+Output MUST be strictly valid JSON without markdown tags, matching this exact structure:
 {
   "topics": [
     { "topic": "Topic Name", "explanation": "Penjelasan Ringkas Bahasa Indonesia", "formula": "Subject + ..." }
@@ -90,48 +84,90 @@ Output MUST be strictly valid JSON without markdown formatting, matching this ex
       "question": "Grammar question text in English?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "answer": "Option A",
-      "explanation": "Penjelasan aturan tata bahasa."
+      "explanation": "Penjelasan aturan tata bahasa dalam Bahasa Indonesia."
     }
   ]
 }`;
 
     let lastError = null;
 
-    for (const modelName of models) {
-        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${activeKey}`;
+    // 2. Loop Failover: Coba Setiap Key dan Setiap Model
+    for (const key of keys) {
+        for (const modelName of models) {
+            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`;
 
-        try {
-            const response = await fetch(GEMINI_API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { responseMimeType: "application/json" }
-                })
-            });
+            try {
+                const response = await fetch(GEMINI_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { 
+                            temperature: 0.5,
+                            responseMimeType: "application/json" 
+                        }
+                    })
+                });
 
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error?.message || "Gagal dari API Google");
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    lastError = errData.error?.message || `HTTP ${response.status}`;
+                    console.warn(`[Grammar Failover] Key ...${key.slice(-4)} & Model ${modelName} gagal: ${lastError}`);
+                    continue; 
+                }
+
+                const data = await response.json();
+                let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!rawText) continue;
+
+                rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+                const firstOpen = rawText.indexOf('{');
+                const lastClose = rawText.lastIndexOf('}');
+                if (firstOpen !== -1 && lastClose !== -1) {
+                    rawText = rawText.substring(firstOpen, lastClose + 1);
+                }
+
+                const parsed = JSON.parse(rawText);
+                if (parsed.topics && parsed.quizzes) {
+                    return res.status(200).json(parsed);
+                }
+
+            } catch (err) {
+                lastError = err.message;
+                console.warn(`[Grammar API Exception] (${modelName}):`, err.message);
             }
-
-            const data = await response.json();
-            let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!rawText) throw new Error("Respons AI kosong.");
-
-            rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
-            const firstOpen = rawText.indexOf('{');
-            const lastClose = rawText.lastIndexOf('}');
-            if (firstOpen !== -1 && lastClose !== -1) {
-                rawText = rawText.substring(firstOpen, lastClose + 1);
-            }
-
-            return res.status(200).json(JSON.parse(rawText));
-
-        } catch (err) {
-            lastError = err.message;
         }
     }
 
-    return res.status(500).json({ error: "Gagal memanggil AI: " + lastError });
+    console.error("Semua API Key Grammar gagal. Menggunakan fallback lokal:", lastError);
+
+    // 3. Fallback Lokal Cadangan
+    return res.status(200).json({
+        topics: [
+            {
+                topic: "Modal Verbs of Speculation (Past)",
+                explanation: "Digunakan untuk mengandai-andai atau menebak kejadian di masa lalu berdasarkan bukti yang ada.",
+                formula: "Subject + must/might/could/should + have + Verb 3"
+            },
+            {
+                topic: "Inversion after Negative Adverbs",
+                explanation: "Pembalikan posisi subjek dan kata kerja bantu setelah kata keterangan negatif untuk memberikan penekanan.",
+                formula: "Negative Adverb (Not only/Hardly) + Auxiliary Verb + Subject + Main Verb"
+            }
+        ],
+        quizzes: [
+            {
+                question: "She _____ arrived by now; her flight landed two hours ago.",
+                options: ["must have", "should be", "might had", "can have"],
+                answer: "must have",
+                explanation: "Menggunakan 'must have + V3' untuk menyatakan kepastian/kesimpulan kuat tentang kejadian masa lalu."
+            },
+            {
+                question: "Not only _____ the exam, but he also got the top score in class.",
+                options: ["he passed", "did he pass", "he did pass", "passed he"],
+                answer: "did he pass",
+                explanation: "Struktur inversi membutuhkan kata kerja bantu 'did' sebelum subjek 'he'."
+            }
+        ]
+    });
 }
