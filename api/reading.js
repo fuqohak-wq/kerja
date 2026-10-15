@@ -6,15 +6,21 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Metode tidak diizinkan.' });
 
-    const keys = [process.env.GEMINI_KEY_1, process.env.GEMINI_KEY_2, process.env.GEMINI_KEY_3].filter(Boolean);
-    if (keys.length === 0) return res.status(500).json({ error: "API Keys tidak ditemukan." });
+    // 1. Ambil Semua Key yang Tersedia
+    const keys = [
+        process.env.GEMINI_KEY_1, 
+        process.env.GEMINI_KEY_2, 
+        process.env.GEMINI_KEY_3,
+        process.env.GEMINI_API_KEY
+    ].filter(Boolean);
 
-    const activeKey = keys[Math.floor(Math.random() * keys.length)];
+    if (keys.length === 0) return res.status(500).json({ error: "API Keys tidak ditemukan di Environment Variables." });
+
+    // Model resmi dan stabil
     const models = ["gemini-3.5-flash", "gemini-2.5-flash"];
 
     const bodyData = req.body || {};
     
-    // SISTEM PENGACAK TEMA ARTIKEL
     const availableThemes = [
         "Space Exploration & Mars Rovers", 
         "Artificial Intelligence in Daily Life", 
@@ -30,72 +36,78 @@ export default async function handler(req, res) {
         "Culinary Traditions in Asia"
     ];
 
-    // Jika frontend tidak mengirimkan tema spesifik, pilihkan tema acak
     const selectedTheme = bodyData.theme || availableThemes[Math.floor(Math.random() * availableThemes.length)];
     const seed = Date.now() + "_" + Math.random();
 
     const prompt = `You are an expert English reading comprehension test creator. Generate an interesting English reading article and exercise tailored to this theme: "${selectedTheme}" (Seed: ${seed}). 
-You MUST output ONLY valid JSON format using this exact structure without any markdown backticks or extra text:
+Respond strictly in JSON format matching this schema:
 {
   "theme": "${selectedTheme}",
-  "paragraph1": "First paragraph of the reading article in English (2-3 engaging sentences)...",
-  "paragraph2": "Second paragraph expanding on the topic in English...",
-  "paragraph3": "Third paragraph providing a conclusion or interesting fact...",
+  "paragraph1": "First paragraph (2-3 sentences)",
+  "paragraph2": "Second paragraph expanding on the topic",
+  "paragraph3": "Third paragraph conclusion",
   "vocabularyMap": {
-    "keyWord1": "arti kata 1 dalam Bahasa Indonesia",
-    "keyWord2": "arti kata 2 dalam Bahasa Indonesia",
-    "keyWord3": "arti kata 3 dalam Bahasa Indonesia"
+    "word1": "arti kata 1 dalam Bahasa Indonesia",
+    "word2": "arti kata 2 dalam Bahasa Indonesia"
   },
-  "question": "Reading comprehension question in English based on the article above?",
-  "options": ["Option A text", "Option B text", "Option C text", "Option D text"],
-  "answer": "The exact matching text of the correct option",
-  "explanation": "Brief explanation in Bahasa Indonesia why this answer is correct based on the paragraphs."
+  "question": "Reading comprehension question in English?",
+  "options": ["Option A", "Option B", "Option C", "Option D"],
+  "answer": "Exact matching text of the correct option",
+  "explanation": "Penjelasan singkat dalam Bahasa Indonesia"
 }`;
 
     let lastError = null;
 
-    for (const modelName of models) {
-        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${activeKey}`;
+    // 2. Loop Failover: Coba Setiap Key dan Setiap Model sampai berhasil
+    for (const key of keys) {
+        for (const modelName of models) {
+            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`;
 
-        try {
-            const response = await fetch(GEMINI_API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { responseMimeType: "application/json" }
-                })
-            });
+            try {
+                const response = await fetch(GEMINI_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { 
+                            temperature: 0.7,
+                            responseMimeType: "application/json" // Memaksa output berupa JSON murni
+                        }
+                    })
+                });
 
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error?.message || "Gagal dari Google API");
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    lastError = errData.error?.message || `HTTP ${response.status}`;
+                    console.warn(`[Failover] Key ...${key.slice(-4)} & Model ${modelName} gagal: ${lastError}`);
+                    continue; // Pindah ke kombinasi berikutnya
+                }
+
+                const data = await response.json();
+                let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!rawText) continue;
+
+                // Pembersihan JSON
+                rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+                const firstOpen = rawText.indexOf('{');
+                const lastClose = rawText.lastIndexOf('}');
+                if (firstOpen !== -1 && lastClose !== -1) {
+                    rawText = rawText.substring(firstOpen, lastClose + 1);
+                }
+
+                const parsedData = JSON.parse(rawText);
+                return res.status(200).json(parsedData);
+
+            } catch (err) {
+                lastError = err.message;
+                console.warn(`[Reading API Exception] (${modelName}):`, err.message);
             }
-
-            const data = await response.json();
-            let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!rawText) throw new Error("Respons AI kosong.");
-
-            rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
-            const firstOpen = rawText.indexOf('{');
-            const lastClose = rawText.lastIndexOf('}');
-            if (firstOpen !== -1 && lastClose !== -1) {
-                rawText = rawText.substring(firstOpen, lastClose + 1);
-            }
-
-            return res.status(200).json(JSON.parse(rawText));
-
-        } catch (err) {
-            lastError = err.message;
-            console.warn(`Reading API (${modelName}) warning:`, err.message);
         }
     }
 
-    console.error("Error di API Reading (Pindah ke dynamic fallback):", lastError);
+    console.error("Semua API Key & Model gagal. Menggunakan fallback lokal:", lastError);
 
-    // ==========================================
-    // FALLBACK ARTIKEL BACAAN BERVARIASI
-    // ==========================================
+    // 3. Fallback Cadangan jika API mati total
     const fallbackArticles = [
         {
             theme: "Space & Mars",
@@ -118,17 +130,6 @@ You MUST output ONLY valid JSON format using this exact structure without any ma
             options: ["In diagnosing diseases", "In building hospitals", "In driving ambulances", "In cooking meals"],
             answer: "In diagnosing diseases",
             explanation: "Paragraf kedua menjelaskan bahwa algoritma AI dapat membantu dokter dalam mendiagnosis penyakit."
-        },
-        {
-            theme: "Ocean & Marine Life",
-            paragraph1: "The deep ocean remains one of the least explored places on Planet Earth, holding many mysterious creatures.",
-            paragraph2: "Because sunlight cannot reach the deepest parts of the sea, many ocean animals create their own light through bioluminescence.",
-            paragraph3: "Protecting marine ecosystems from plastic pollution is essential to keep these extraordinary underwater creatures alive.",
-            vocabularyMap: { "unexplored": "belum terjelajahi", "bioluminescence": "pendaran hayati (cahaya alami)", "pollution": "pencemaran" },
-            question: "Why do some deep sea animals produce their own light?",
-            options: ["Because sunlight cannot reach the deepest ocean", "To keep the water warm", "To scare off ships", "To sleep better"],
-            answer: "Because sunlight cannot reach the deepest ocean",
-            explanation: "Paragraf kedua menyatakan hal ini terjadi karena sinar matahari tidak dapat mencapai bagian laut terdalam."
         }
     ];
 
