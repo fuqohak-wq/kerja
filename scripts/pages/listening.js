@@ -44,7 +44,7 @@ export function renderListening(container) {
 
             <div id="listening-loading" style="display:none; text-align:center; margin:40px 0; color:var(--primary-color, #1a73e8);">
                 <div class="spinner" style="border:4px solid #f3f3f3; border-top:4px solid #1a73e8; border-radius:50%; width:35px; height:35px; animation:spin 1s linear infinite; margin:0 auto 15px auto;"></div>
-                <p style="font-weight:bold; margin:0;">⏳ AI sedang menyusun 10 paket soal percakapan...</p>
+                <p id="loading-status-text" style="font-weight:bold; margin:0;">⏳ AI sedang menyusun 10 paket soal percakapan...</p>
                 <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
             </div>
 
@@ -70,6 +70,7 @@ export function renderListening(container) {
     const themeSelector = container.querySelector('#theme-selector');
     const themeButtons = container.querySelectorAll('.theme-btn');
     const loadingDiv = container.querySelector('#listening-loading');
+    const loadingStatusText = container.querySelector('#loading-status-text');
     const listeningZone = container.querySelector('#listening-zone');
     const progressDiv = container.querySelector('#quiz-progress');
     const playAudioBtn = container.querySelector('#btn-play-audio');
@@ -80,35 +81,55 @@ export function renderListening(container) {
 
     themeButtons.forEach(btn => {
         btn.addEventListener('click', async (e) => {
-            currentThemeLabel = e.target.getAttribute('data-theme');
+            currentThemeLabel = e.currentTarget.getAttribute('data-theme');
             themeSelector.style.display = 'none';
             loadingDiv.style.display = 'block';
 
-            try {
-                const res = await fetch('/api/listening', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ theme: currentThemeLabel })
-                });
+            const maxRetries = 2;
+            let attempt = 0;
+            let success = false;
 
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || "Gagal menghubungi AI.");
+            while (attempt <= maxRetries && !success) {
+                try {
+                    attempt++;
+                    if (attempt > 1) {
+                        loadingStatusText.innerText = `⏳ Mencoba menghubungkan ulang ke AI (Percobaan ${attempt}/${maxRetries + 1})...`;
+                    } else {
+                        loadingStatusText.innerText = "⏳ AI sedang menyusun 10 paket soal percakapan...";
+                    }
 
-                quizItems = data.items || [];
-                if (quizItems.length === 0) throw new Error("Materi dari AI tidak lengkap.");
+                    const res = await fetch('/api/listening', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ theme: currentThemeLabel })
+                    });
 
-                currentRound = 0;
-                score = 0;
-                loadingDiv.style.display = 'none';
-                listeningZone.style.display = 'block';
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || "Gagal menghubungi AI.");
 
-                loadQuestion(currentRound);
+                    quizItems = data.items || [];
+                    if (quizItems.length === 0) throw new Error("Materi dari AI tidak lengkap.");
 
-            } catch (err) {
-                console.error(err);
-                loadingDiv.style.display = 'none';
-                alert(`⚠️ Kendala AI:\n${err.message}\n\nSilakan coba klik lagi tombol tema.`);
-                themeSelector.style.display = 'grid';
+                    currentRound = 0;
+                    score = 0;
+                    loadingDiv.style.display = 'none';
+                    listeningZone.style.display = 'block';
+
+                    loadQuestion(currentRound);
+                    success = true;
+
+                } catch (err) {
+                    console.warn(`[Client Retry Warning] Percobaan ke-${attempt} gagal:`, err.message);
+                    
+                    if (attempt > maxRetries) {
+                        loadingDiv.style.display = 'none';
+                        alert(`⚠️ Kendala AI:\n${err.message}\n\nSilakan klik tombol tema sekali lagi.`);
+                        themeSelector.style.display = 'grid';
+                    } else {
+                        // Jeda 1.2 detik sebelum mengulang otomatis
+                        await new Promise(resolve => setTimeout(resolve, 1200));
+                    }
+                }
             }
         });
     });
@@ -141,7 +162,7 @@ export function renderListening(container) {
             <p style="font-size:1.1rem; margin-bottom:15px; font-weight:bold; color:#202124;">${item.question}</p>
             <div style="display:flex; flex-direction:column; gap:10px;">
                 ${item.options.map(opt => `
-                    <button class="option-btn listen-opt" data-val="${opt}" style="
+                    <button class="option-btn listen-opt" data-val="${opt.replace(/"/g, '&quot;')}" style="
                         text-align:left; padding:12px 15px; width:100%; border:1px solid #ccc; 
                         border-radius:8px; background:#fff; cursor:pointer; font-size:0.95rem;
                     ">${opt}</button>
@@ -154,21 +175,21 @@ export function renderListening(container) {
         optBtns.forEach(btn => {
             btn.onclick = (e) => {
                 optBtns.forEach(b => b.disabled = true);
-                const selected = e.target.getAttribute('data-val');
+                const selected = e.currentTarget.getAttribute('data-val');
                 const explBox = quizBox.querySelector('#quiz-explanation');
 
                 if (selected === item.answer) {
                     score += 10;
-                    e.target.style.background = '#e6f4ea';
-                    e.target.style.borderColor = '#34a853';
+                    e.currentTarget.style.background = '#e6f4ea';
+                    e.currentTarget.style.borderColor = '#34a853';
                     explBox.innerHTML = `
                         <div style="border-left:4px solid #34a853; background:#f4faf6; padding:14px; border-radius:8px; color:#137333;">
                             <strong>🎉 Masya Allah, Jawaban Benar!</strong><br>${item.explanation}
                         </div>
                     `;
                 } else {
-                    e.target.style.background = '#fce8e6';
-                    e.target.style.borderColor = '#ea4335';
+                    e.currentTarget.style.background = '#fce8e6';
+                    e.currentTarget.style.borderColor = '#ea4335';
                     explBox.innerHTML = `
                         <div style="border-left:4px solid #ea4335; background:#fdf5f5; padding:14px; border-radius:8px; color:#c5221f;">
                             <strong>📌 Jawaban Kurang Tepat.</strong><br>Jawaban yang benar: <strong>${item.answer}</strong><br><small style="margin-top:4px; display:block;">${item.explanation}</small>
