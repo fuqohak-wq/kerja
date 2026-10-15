@@ -2,7 +2,7 @@ export function renderVocab(container) {
     container.innerHTML = `
         <div class="welcome-section">
             <h2>📚 Daily Vocabulary Challenge</h2>
-            <p>Uji daya ingatmu dengan 20 soal variatif khusus untuk 5 kosakata hari ini!</p>
+            <p>Uji daya ingatmu dengan latihan kosakata harian terstruktur!</p>
         </div>
 
         <div class="reading-container" style="background:#fff; padding:20px; border-radius:12px; border:1px solid #dadce0; max-width:800px; margin:0 auto;">
@@ -18,7 +18,7 @@ export function renderVocab(container) {
 
 async function loadVocabBatch(vocabContent) {
     const today = new Date().toISOString().split('T')[0];
-    const STORAGE_KEY = 'inggrisku_vocab_daily_5_v2'; // Diperbarui untuk struktur data baru dengan pelafalan
+    const STORAGE_KEY = 'inggrisku_vocab_daily_5_v2';
     const SEEN_WORDS_KEY = 'inggrisku_seen_vocab';
 
     let localBatch = null;
@@ -31,43 +31,73 @@ async function loadVocabBatch(vocabContent) {
         seenWords = JSON.parse(localStorage.getItem(SEEN_WORDS_KEY)) || [];
     } catch (e) {}
 
-    const isNeedFetch = !localBatch || localBatch.date !== today || !localBatch.words || localBatch.words.length < 5 || !localBatch.quizzes || localBatch.quizzes.length < 20;
+    const isNeedFetch = !localBatch || localBatch.date !== today || !localBatch.words || localBatch.words.length < 5 || !localBatch.quizzes || localBatch.quizzes.length === 0;
 
     if (isNeedFetch) {
-        vocabContent.innerHTML = `<p style="color:#1a73e8; font-weight:bold;">🤖 Meminta AI menyiapkan 5 kata baru & 20 Soal khusus... (Cukup 1x sehari)</p>`;
-        try {
-            const res = await fetch('/api/vocab', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    action: 'get-batch-5',
-                    exclude: seenWords
-                })
-            });
-            const data = await res.json();
+        vocabContent.innerHTML = `<p style="color:#1a73e8; font-weight:bold;" id="vocab-status-text">🤖 Meminta AI menyiapkan 5 kata baru & kuis harian...</p>`;
+        
+        const maxRetries = 2;
+        let attempt = 0;
+        let success = false;
 
-            if (!res.ok || !data.words || data.words.length === 0) {
-                throw new Error(data.error || "Gagal mendapatkan data dari AI");
+        while (attempt <= maxRetries && !success) {
+            try {
+                attempt++;
+                const statusEl = vocabContent.querySelector('#vocab-status-text');
+                if (statusEl && attempt > 1) {
+                    statusEl.innerText = `🤖 Menghubungkan ulang ke AI Vocab (Percobaan ${attempt}/${maxRetries + 1})...`;
+                }
+
+                const res = await fetch('/api/vocab', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        action: 'get-batch-5',
+                        exclude: seenWords
+                    })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok || !data.words || data.words.length === 0) {
+                    throw new Error(data.error || "Gagal mendapatkan data dari AI");
+                }
+
+                localBatch = {
+                    date: today,
+                    words: data.words.slice(0, 5),
+                    quizzes: data.quizzes
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(localBatch));
+
+                const newWords = data.words.map(w => w.word.toLowerCase());
+                const updatedSeenWords = Array.from(new Set([...seenWords, ...newWords]));
+                
+                if (updatedSeenWords.length > 150) {
+                    updatedSeenWords.splice(0, updatedSeenWords.length - 150);
+                }
+                localStorage.setItem(SEEN_WORDS_KEY, JSON.stringify(updatedSeenWords));
+                success = true;
+
+            } catch (err) {
+                console.warn(`[Vocab Retry Warning] Percobaan ke-${attempt} gagal:`, err.message);
+                if (attempt > maxRetries) {
+                    vocabContent.innerHTML = `
+                        <div style="padding:15px; background:#fdf5f5; border:1px solid #f5c6cb; border-radius:8px; color:#721c24;">
+                            <p style="margin:0 0 10px 0; font-weight:bold;">⚠️ Kendala Koneksi AI</p>
+                            <p style="margin:0 0 15px 0; font-size:0.9rem;">${err.message}</p>
+                            <button id="btn-reload-vocab" style="background:#1a73e8; color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-weight:bold;">🔄 Coba Lagi</button>
+                        </div>
+                    `;
+                    const btnReload = vocabContent.querySelector('#btn-reload-vocab');
+                    if (btnReload) {
+                        btnReload.onclick = () => loadVocabBatch(vocabContent);
+                    }
+                    return;
+                } else {
+                    await new Promise(r => setTimeout(r, 1000));
+                }
             }
-
-            localBatch = {
-                date: today,
-                words: data.words.slice(0, 5),
-                quizzes: data.quizzes.slice(0, 20)
-            };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(localBatch));
-
-            const newWords = data.words.map(w => w.word.toLowerCase());
-            const updatedSeenWords = Array.from(new Set([...seenWords, ...newWords]));
-            
-            if (updatedSeenWords.length > 150) {
-                updatedSeenWords.splice(0, updatedSeenWords.length - 150);
-            }
-            localStorage.setItem(SEEN_WORDS_KEY, JSON.stringify(updatedSeenWords));
-
-        } catch (err) {
-            vocabContent.innerHTML = `<p style="color:#d93025;">⚠️ Gagal memuat AI: ${err.message}. Silakan coba lagi.</p>`;
-            return;
         }
     }
 
@@ -122,7 +152,7 @@ function renderQuizSystem(quizzes, scoreKey, container) {
                 <p style="margin:0 0 15px 0; font-weight:bold; font-size:1.05rem; color:#202124; line-height:1.5;">${q.question}</p>
                 
                 <div style="display:flex; flex-direction:column; gap:8px;">
-                    ${q.options.map(o => `<button class="opt-btn" data-val="${o}" style="text-align:left; padding:11px 14px; background:#fff; border:1px solid #ccc; border-radius:8px; cursor:pointer; font-size:0.95rem; font-weight:500;">${o}</button>`).join('')}
+                    ${q.options.map(o => `<button class="opt-btn" data-val="${o.replace(/"/g, '&quot;')}" style="text-align:left; padding:11px 14px; background:#fff; border:1px solid #ccc; border-radius:8px; cursor:pointer; font-size:0.95rem; font-weight:500;">${o}</button>`).join('')}
                 </div>
                 
                 <div id="expl-box" style="margin-top:12px;"></div>
@@ -135,18 +165,18 @@ function renderQuizSystem(quizzes, scoreKey, container) {
         btns.forEach(btn => {
             btn.onclick = (e) => {
                 btns.forEach(b => b.disabled = true);
-                const val = e.target.getAttribute('data-val');
+                const val = e.currentTarget.getAttribute('data-val');
 
                 if (val === q.answer) {
                     correctCount++;
-                    e.target.style.background = '#e6f4ea';
-                    e.target.style.borderColor = '#34a853';
-                    e.target.style.color = '#137333';
+                    e.currentTarget.style.background = '#e6f4ea';
+                    e.currentTarget.style.borderColor = '#34a853';
+                    e.currentTarget.style.color = '#137333';
                     container.querySelector('#expl-box').innerHTML = `<div style="color:#137333; font-size:0.9rem; background:#e6f4ea; padding:8px 12px; border-radius:6px;">🎉 <strong>Benar!</strong> ${q.explanation || ''}</div>`;
                 } else {
-                    e.target.style.background = '#fce8e6';
-                    e.target.style.borderColor = '#ea4335';
-                    e.target.style.color = '#c5221f';
+                    e.currentTarget.style.background = '#fce8e6';
+                    e.currentTarget.style.borderColor = '#ea4335';
+                    e.currentTarget.style.color = '#c5221f';
                     container.querySelector('#expl-box').innerHTML = `<div style="color:#c5221f; font-size:0.9rem; background:#fce8e6; padding:8px 12px; border-radius:6px;">❌ <strong>Salah.</strong> Jawaban tepat: <strong>${q.answer}</strong>. ${q.explanation || ''}</div>`;
                 }
                 container.querySelector('#btn-next-q').style.display = 'block';
@@ -166,10 +196,10 @@ function renderQuizSystem(quizzes, scoreKey, container) {
 
                 container.innerHTML = `
                     <div style="text-align:center; padding:25px; background:#e8f0fe; border-radius:12px; color:#1a73e8;">
-                        <h3 style="margin:0 0 10px 0;">🏆 Latihan 20 Soal Selesai!</h3>
-                        <p style="font-size:1.1rem; margin:5px 0;">Jawaban Benar: <strong>${correctCount} / 20</strong></p>
+                        <h3 style="margin:0 0 10px 0;">🏆 Latihan Vocabulary Selesai!</h3>
+                        <p style="font-size:1.1rem; margin:5px 0;">Jawaban Benar: <strong>${correctCount} / ${quizzes.length}</strong></p>
                         <p style="font-size:1.8rem; font-weight:bold; margin:10px 0; color:#1a73e8;">NILAI AKHIR: ${finalScore}</p>
-                        <p style="font-size:0.85rem; color:#5f6368; margin:0;">Nilai ini telah otomatis diperbarui di Dashboard dan siap dikirim ke Google Sheet Sel B6.</p>
+                        <p style="font-size:0.85rem; color:#5f6368; margin:0;">Nilai ini telah otomatis diperbarui di Dashboard.</p>
                     </div>
                 `;
             }
