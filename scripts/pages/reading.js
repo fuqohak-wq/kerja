@@ -19,9 +19,8 @@ export function renderReading(container) {
     const maxRounds = 10;
     let score = 0;
     let currentTheme = "";
-    let sessionData = null; // Menyimpan data artikel aktif
+    let sessionData = null;
 
-    // Gaya CSS dinamis untuk tampilan kamus melayang
     const styleId = 'reading-custom-tooltip-styles';
     if (!document.getElementById(styleId)) {
         const styleEl = document.createElement('style');
@@ -87,7 +86,7 @@ export function renderReading(container) {
             <div id="quiz-progress" style="display:none; font-weight:bold; color:var(--primary-color); margin-bottom:15px; text-align:center;"></div>
 
             <div id="reading-loading" style="display:none; text-align:center; margin:30px 0; color:var(--primary-color);">
-                <span class="loading-spinner">⏳</span> Menganalisis dan meracik materi artikel baru dari AI...
+                <span class="loading-spinner">⏳</span> <span id="loading-status-text">Menganalisis dan meracik materi artikel baru dari AI...</span>
             </div>
 
             <div id="reading-zone" style="display:none;">
@@ -108,6 +107,7 @@ export function renderReading(container) {
     const themeButtons = container.querySelectorAll('.theme-btn');
     const readingZone = container.querySelector('#reading-zone');
     const loadingDiv = container.querySelector('#reading-loading');
+    const loadingStatusText = container.querySelector('#loading-status-text');
     const textArticleBox = container.querySelector('#text-article-box');
     const quizArticleBox = container.querySelector('#quiz-article-box');
     const nextBtn = container.querySelector('#btn-next-reading');
@@ -138,46 +138,55 @@ export function renderReading(container) {
         progressDiv.style.display = 'block';
         progressDiv.innerText = `📝 Tantangan Bacaan ke-${currentRound} dari ${maxRounds} [Skor: ${score}]`;
 
-        try {
-            const res = await fetch('/api/reading', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    theme: currentTheme || '',
-                    timestamp: Date.now()
-                })
-            });
+        const maxRetries = 2;
+        let attempt = 0;
+        let success = false;
 
-            if (!res.ok) throw new Error("Gagal mengambil data reading");
-            
-            let rawText = await res.text();
-            rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-            
-            const firstOpen = rawText.indexOf('{');
-            const lastClose = rawText.lastIndexOf('}');
-            if (firstOpen !== -1 && lastClose !== -1) {
-                rawText = rawText.substring(firstOpen, lastClose + 1);
+        while (attempt <= maxRetries && !success) {
+            try {
+                attempt++;
+                if (attempt > 1) {
+                    loadingStatusText.innerText = `Menghubungkan ulang ke AI (Percobaan ${attempt}/${maxRetries + 1})...`;
+                } else {
+                    loadingStatusText.innerText = "Menganalisis dan meracik materi artikel baru dari AI...";
+                }
+
+                const res = await fetch('/api/reading', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        theme: currentTheme || '',
+                        timestamp: Date.now()
+                    })
+                });
+
+                if (!res.ok) throw new Error("Gagal mengambil data reading.");
+                
+                const data = await res.json();
+                sessionData = data;
+                
+                loadingDiv.style.display = 'none';
+                readingZone.style.display = 'block';
+
+                renderInteractiveText(data);
+                setupQuiz(data);
+                success = true;
+
+            } catch (err) {
+                console.warn(`Percobaan ke-${attempt} gagal:`, err.message);
+                if (attempt > maxRetries) {
+                    loadingDiv.style.display = 'none';
+                    readingZone.style.display = 'block';
+                    quizArticleBox.innerHTML = `
+                        <p style="color:red; text-align:center;">Gagal menyusun modul reading. Silakan coba lagi.</p>
+                        <button id="btn-retry-reading" class="action-btn" style="margin:10px auto; display:block;">🔄 Muat Ulang</button>
+                    `;
+                    const retryBtn = container.querySelector('#btn-retry-reading');
+                    if (retryBtn) retryBtn.onclick = loadReadingSession;
+                } else {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
             }
-            
-            const data = JSON.parse(rawText);
-            sessionData = data;
-            
-            loadingDiv.style.display = 'none';
-            readingZone.style.display = 'block';
-
-            renderInteractiveText(data);
-            setupQuiz(data);
-
-        } catch (err) {
-            console.error("Error Reading Session:", err);
-            loadingDiv.style.display = 'none';
-            readingZone.style.display = 'block';
-            quizArticleBox.innerHTML = `
-                <p style="color:red; text-align:center;">Gagal menyusun modul reading. Mari kita coba buat ulang.</p>
-                <button id="btn-retry-reading" class="action-btn" style="margin:10px auto; display:block;">🔄 Muat Ulang</button>
-            `;
-            const retryBtn = container.querySelector('#btn-retry-reading');
-            if (retryBtn) retryBtn.onclick = loadReadingSession;
         }
     }
 
@@ -234,7 +243,6 @@ export function renderReading(container) {
                 const targetWord = e.target.getAttribute('data-clean');
                 let translation = "";
                 
-                // 1. Coba cari di kamus bawaan AI terlebih dahulu
                 if (data.vocabularyMap) {
                     const keys = Object.keys(data.vocabularyMap);
                     const matchedKey = keys.find(k => targetWord.includes(k.toLowerCase()) || k.toLowerCase().includes(targetWord));
@@ -246,7 +254,6 @@ export function renderReading(container) {
                 e.target.classList.add('active-vocab-highlight');
                 const rect = e.target.getBoundingClientRect();
 
-                // 2. Jika tidak ada di kamus bawaan, terjemahkan otomatis menggunakan API cadangan
                 if (!translation) {
                     showTooltipAt(rect, "⏳ Menerjemahkan...");
                     try {
@@ -259,19 +266,15 @@ export function renderReading(container) {
                             }
                         }
                     } catch (err) {
-                        console.warn("Gagal menggunakan kamus otomatis:", err);
+                        console.warn("Gagal terjemahan otomatis:", err);
                     }
                 }
 
-                if (!translation) {
-                    translation = "Arti tidak ditemukan.";
-                }
-                
+                if (!translation) translation = "Arti tidak ditemukan.";
                 showTooltipAt(rect, translation);
             });
         });
 
-        // 3. Menangani penyeleksian susunan kalimat (drag/highlight manual)
         textArticleBox.addEventListener('mouseup', async () => {
             const selection = window.getSelection();
             const selectedText = selection.toString().trim();
@@ -289,9 +292,7 @@ export function renderReading(container) {
                         return cleanKey === selectedText.toLowerCase() || selectedText.toLowerCase().includes(cleanKey);
                     });
                     
-                    if (matchedKey) {
-                        translation = sessionData.vocabularyMap[matchedKey];
-                    }
+                    if (matchedKey) translation = sessionData.vocabularyMap[matchedKey];
                 }
 
                 if (!translation) {
@@ -306,15 +307,11 @@ export function renderReading(container) {
                             }
                         }
                     } catch (err) {
-                        console.warn("Gagal menggunakan kamus otomatis:", err);
+                        console.warn("Gagal terjemahan otomatis:", err);
                     }
                 }
 
-                if (translation) {
-                    showTooltipAt(rect, translation);
-                } else {
-                    showTooltipAt(rect, "Arti tidak ditemukan.");
-                }
+                showTooltipAt(rect, translation || "Arti tidak ditemukan.");
             }
         });
     }
@@ -334,7 +331,7 @@ export function renderReading(container) {
         quizArticleBox.innerHTML = `
             <p style="font-size:1.1rem; margin-bottom:15px; font-weight:bold;">Pertanyaan Kuis:<br>${data.question}</p>
             <div style="display:flex; flex-direction:column; gap:10px;">
-                ${(data.options || []).map(opt => `<button class="option-btn read-opt" data-val="${opt}" style="text-align:left; padding:12px; width:100%;">${opt}</button>`).join('')}
+                ${(data.options || []).map(opt => `<button class="option-btn read-opt" data-val="${opt.replace(/"/g, '&quot;')}" style="text-align:left; padding:12px; width:100%; border:1px solid #ccc; border-radius:8px; background:#fff; cursor:pointer;">${opt}</button>`).join('')}
             </div>
             <div id="read-quiz-explanation" style="margin-top:20px;"></div>
         `;
@@ -342,29 +339,29 @@ export function renderReading(container) {
         const optButtons = quizArticleBox.querySelectorAll('.read-opt');
         optButtons.forEach(optBtn => {
             optBtn.addEventListener('click', (e) => {
-                const selected = e.target.getAttribute('data-val');
+                const selected = e.currentTarget.getAttribute('data-val');
                 const expl = quizArticleBox.querySelector('#read-quiz-explanation');
                 
                 optButtons.forEach(b => b.disabled = true);
                 
                 if (selected === data.answer) {
                     score++;
-                    e.target.style.background = '#e6f4ea';
-                    e.target.style.borderColor = '#34a853';
+                    e.currentTarget.style.background = '#e6f4ea';
+                    e.currentTarget.style.borderColor = '#34a853';
                     expl.innerHTML = `
-                        <div style="border-left:4px solid #34a853; background:#f4faf6; padding:15px; border-radius:6px;">
-                            <h4 style="color:#34a853; margin:0 0 5px 0;">🎯 Jawaban Tepat (Excellent!)</h4>
+                        <div style="border-left:4px solid #34a853; background:#f4faf6; padding:15px; border-radius:6px; color:#137333;">
+                            <h4 style="margin:0 0 5px 0;">🎯 Jawaban Tepat (Excellent!)</h4>
                             <p style="margin:0; font-size:0.95rem;">${data.explanation}</p>
                         </div>
                     `;
                 } else {
-                    e.target.style.background = '#fce8e6';
-                    e.target.style.borderColor = '#ea4335';
+                    e.currentTarget.style.background = '#fce8e6';
+                    e.currentTarget.style.borderColor = '#ea4335';
                     expl.innerHTML = `
-                        <div style="border-left:4px solid #ea4335; background:#fdf5f5; padding:15px; border-radius:6px;">
-                            <h4 style="color:#ea4335; margin:0 0 5px 0;">📌 Kurang Tepat</h4>
+                        <div style="border-left:4px solid #ea4335; background:#fdf5f5; padding:15px; border-radius:6px; color:#c5221f;">
+                            <h4 style="margin:0 0 5px 0;">📌 Kurang Tepat</h4>
                             <p style="margin:0 0 8px 0; font-size:0.95rem;">Kunci Jawaban: <strong>${data.answer}</strong></p>
-                            <p style="margin:0; font-size:0.9rem; color:var(--text-muted);">${data.explanation}</p>
+                            <p style="margin:0; font-size:0.9rem;">${data.explanation}</p>
                         </div>
                     `;
                 }
@@ -398,11 +395,11 @@ export function renderReading(container) {
                 <div style="font-size:4rem;">🎓</div>
                 <h3 style="margin:15px 0; color:var(--primary-color);">Sesi Evaluasi Reading Selesai!</h3>
                 <p style="font-size:1.2rem; margin-bottom:10px;">Tema Fokus: <strong>${currentTheme}</strong></p>
-                <div class="score-badge" style="display:inline-block; font-size:1.5rem; padding:10px 30px; margin-bottom:25px; background:var(--primary-color); color:#fff; border-radius:30px;">
+                <div class="score-badge" style="display:inline-block; font-size:1.5rem; padding:10px 30px; margin-bottom:25px; background:var(--primary-color, #1a73e8); color:#fff; border-radius:30px; font-weight:bold;">
                     Nilai Anda: ${finalScore} / 100
                 </div>
                 <p style="color:var(--text-muted); margin-bottom:25px;">Pemahaman Anda tepat pada ${score} dari ${maxRounds} skenario artikel.</p>
-                <button id="btn-restart-reading" class="action-btn" style="width:100%; max-width:400px;">🔄 Ganti Pilihan Tema Baru</button>
+                <button id="btn-restart-reading" class="action-btn" style="width:100%; max-width:400px; padding:12px; border-radius:8px; background:#3c4043; color:white; border:none; cursor:pointer; font-weight:bold;">🔄 Ganti Pilihan Tema Baru</button>
             `;
             
             container.querySelector('#btn-restart-reading').onclick = () => {
