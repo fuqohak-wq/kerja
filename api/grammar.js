@@ -17,7 +17,7 @@ export default async function handler(req, res) {
     if (keys.length === 0) return res.status(500).json({ error: "API Key tidak ditemukan di Environment Variables." });
 
     // Model resmi dan teruji
-    const models = ["gemini-2.5-flash", "gemini-1.5-flash"];
+    const models = ["gemini-3.5-flash", "gemini-2.5-flash"];
 
     let requestDate = "";
     try {
