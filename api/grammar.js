@@ -6,7 +6,6 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Metode tidak diizinkan.' });
 
-    // 1. Kumpulkan semua API Key yang tersedia
     const keys = [
         process.env.GEMINI_KEY_1, 
         process.env.GEMINI_KEY_2, 
@@ -14,84 +13,83 @@ export default async function handler(req, res) {
         process.env.GEMINI_API_KEY
     ].filter(Boolean);
 
-    if (keys.length === 0) return res.status(500).json({ error: "API Key tidak ditemukan di Environment Variables." });
+    if (keys.length === 0) return res.status(500).json({ error: "API Key tidak ditemukan." });
 
-    // Model resmi dan teruji
-    const models = ["gemini-3.5-flash", "gemini-2.5-flash"];
+    const models = ["gemini-2.5-flash", "gemini-1.5-flash"];
 
     let requestDate = "";
     try {
         const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-        if (body && body.date) {
-            requestDate = body.date;
-        }
+        if (body && body.date) requestDate = body.date;
     } catch (e) {}
 
-    if (!requestDate) {
-        requestDate = new Date().toISOString().split('T')[0];
-    }
-
+    if (!requestDate) requestDate = new Date().toISOString().split('T')[0];
     const dayOfMonth = new Date(requestDate).getDate() || 1;
 
     const grammarThemes = [
-        "Advanced Future Forms & Temporal Clauses (Future Perfect, Future in the Past)",
-        "Modal Verbs of Obligation, Deduction, and Speculation (must have, should have, might have)",
-        "Mixed Conditionals & Alternatives to 'If' (provided that, assuming, had it not been for)",
-        "The Subjunctive Mood & Unreal Past (wish, would rather, it's high time)",
-        "Inversion after Negative Adverbials (Not only..., Little did he know...)",
-        "Causative Passive (have/get something done) & Impersonal Passive (It is said that...)",
-        "Gerunds vs Infinitives with meaning change (stop, remember, forget, regret, try)",
-        "Relative Clauses with Prepositions & Nominal Relative Clauses (whom, whereby, whatever)",
-        "Cleft Sentences (It-clefts, Wh-clefts for emphasis)",
-        "Comparison Nuances & Double Comparatives (the more... the more...)",
-        "Conjunctions of Concession, Contrast, and Purpose (albeit, whereas, lest, in order that)",
-        "Advanced Article Usage & Abstract/Noun Countability rules",
-        "Reflexive, Reciprocal, and Distributive Pronouns (each other, one another, each/every)",
-        "Dependent Prepositions & Complex Prepositional Phrases (with a view to, in accordance with)",
-        "Reported Speech with Advanced Reporting Verbs (insisted on, accused of, denied)",
-        "Participle Clauses for Concession, Reason, and Time (Having finished..., Viewed from this angle...)",
-        "Subject-Verb Agreement Exceptions (collective nouns, fractional expressions, relative clauses)",
-        "Tag Questions with Imperatives, Let's, and Negative Words (nobody, barely)",
-        "Grammar of Phrasal Verbs (separable/inseparable, transitive/intransitive dynamics)",
-        "Complements & Verb Patterns (verbs followed by bare infinitive, gerund, or participle)",
-        "Degree Modifiers & Adverbial Qualifiers (quite, rather, fairly, somewhat)",
-        "Emphatic Structures & Fronting (Do/did for positive emphasis, fronting adjectives)",
-        "Irregular Plurals & Collective Noun Concord (criteria, phenomena, media)",
-        "Introductory 'It' vs Existential 'There' (there being, it seems that)",
-        "Grammatical Ellipsis & Substitution (using auxiliary verbs, so/not, one/ones to avoid repetition)",
-        "Word Formation & Syntactic Category Shifts (nominalization, prefix/suffix grammar)",
-        "Indirect Questions, Softeners, and Diplomatic/Polite Language Structures",
-        "Expressing Past Habits & Changes (used to vs would vs get used to)",
-        "Adjective Order, Participle Adjectives (boring vs bored), and Compound Adjectives",
-        "Advanced Quantifiers & Distributives (both, neither, either, none, all, whole)",
-        "Prepositions of Place, Direction, and Time in complex metaphoric usages"
+        "Advanced Future Forms & Temporal Clauses",
+        "Modal Verbs of Obligation, Deduction, and Speculation",
+        "Mixed Conditionals & Alternatives to 'If'",
+        "The Subjunctive Mood & Unreal Past",
+        "Inversion after Negative Adverbials",
+        "Causative Passive & Impersonal Passive",
+        "Gerunds vs Infinitives with Meaning Change",
+        "Relative Clauses with Prepositions",
+        "Cleft Sentences for Emphasis",
+        "Double Comparatives and Nuances",
+        "Conjunctions of Concession and Contrast",
+        "Advanced Article Usage & Noun Rules",
+        "Reflexive and Distributive Pronouns",
+        "Dependent Prepositions & Complex Phrases",
+        "Reported Speech with Advanced Reporting Verbs",
+        "Participle Clauses for Concession and Time",
+        "Subject-Verb Agreement Exceptions",
+        "Advanced Tag Questions",
+        "Grammar of Phrasal Verbs",
+        "Verb Patterns & Complements",
+        "Degree Modifiers & Adverbial Qualifiers",
+        "Emphatic Structures & Fronting",
+        "Irregular Plurals & Collective Concord",
+        "Introductory 'It' vs Existential 'There'",
+        "Grammatical Ellipsis & Substitution",
+        "Word Formation & Syntactic Shifts",
+        "Indirect Questions & Diplomatic Language",
+        "Expressing Past Habits (used to vs would)",
+        "Adjective Order & Compound Adjectives",
+        "Advanced Quantifiers & Distributives",
+        "Prepositions in Complex Metaphoric Usages"
     ];
 
     const activeTheme = grammarThemes[(dayOfMonth - 1) % grammarThemes.length];
 
-    const prompt = `You are a professional English AI Tutor.
-Today's Target Focus: ${activeTheme}
+    const prompt = `You are a Master English Grammar Educator.
+Target Focus: "${activeTheme}".
 
-Generate a concise grammar module containing 4 core Grammar topics and 6 multiple-choice quiz questions focusing on "${activeTheme}".
+Generate ONE SINGLE highly-detailed grammar lesson on this topic, followed by 6 quiz questions.
 
 Output MUST be strictly valid JSON without markdown tags, matching this exact structure:
 {
-  "topics": [
-    { "topic": "Topic Name", "explanation": "Penjelasan Ringkas Bahasa Indonesia", "formula": "Subject + ..." }
+  "topic": "${activeTheme}",
+  "explanation": "Penjelasan mendalam tentang aturan tata bahasa ini dalam Bahasa Indonesia.",
+  "formula": "Rumus / Pola Kalimat Utama",
+  "examples": [
+    { "en": "Example sentence 1 in English", "id": "Terjemahan bahasa Indonesia" },
+    { "en": "Example sentence 2 in English", "id": "Terjemahan bahasa Indonesia" },
+    { "en": "Example sentence 3 in English", "id": "Terjemahan bahasa Indonesia" }
   ],
+  "usageNotes": "Tips penting / kesalahan umum yang sering dilakukan pembelajar.",
   "quizzes": [
     {
-      "question": "Grammar question text in English?",
+      "question": "Question text in English?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "answer": "Option A",
-      "explanation": "Penjelasan aturan tata bahasa dalam Bahasa Indonesia."
+      "explanation": "Penjelasan detail kenapa jawaban ini benar."
     }
   ]
 }`;
 
     let lastError = null;
 
-    // 2. Loop Failover: Coba Setiap Key dan Setiap Model
     for (const key of keys) {
         for (const modelName of models) {
             const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`;
@@ -103,7 +101,7 @@ Output MUST be strictly valid JSON without markdown tags, matching this exact st
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: prompt }] }],
                         generationConfig: { 
-                            temperature: 0.5,
+                            temperature: 0.4,
                             responseMimeType: "application/json" 
                         }
                     })
@@ -112,7 +110,6 @@ Output MUST be strictly valid JSON without markdown tags, matching this exact st
                 if (!response.ok) {
                     const errData = await response.json().catch(() => ({}));
                     lastError = errData.error?.message || `HTTP ${response.status}`;
-                    console.warn(`[Grammar Failover] Key ...${key.slice(-4)} & Model ${modelName} gagal: ${lastError}`);
                     continue; 
                 }
 
@@ -128,45 +125,39 @@ Output MUST be strictly valid JSON without markdown tags, matching this exact st
                 }
 
                 const parsed = JSON.parse(rawText);
-                if (parsed.topics && parsed.quizzes) {
+                if (parsed.topic && parsed.quizzes) {
                     return res.status(200).json(parsed);
                 }
 
             } catch (err) {
                 lastError = err.message;
-                console.warn(`[Grammar API Exception] (${modelName}):`, err.message);
             }
         }
     }
 
-    console.error("Semua API Key Grammar gagal. Menggunakan fallback lokal:", lastError);
-
-    // 3. Fallback Lokal Cadangan
+    // Fallback Lokal Detail jika API offline
     return res.status(200).json({
-        topics: [
-            {
-                topic: "Modal Verbs of Speculation (Past)",
-                explanation: "Digunakan untuk mengandai-andai atau menebak kejadian di masa lalu berdasarkan bukti yang ada.",
-                formula: "Subject + must/might/could/should + have + Verb 3"
-            },
-            {
-                topic: "Inversion after Negative Adverbs",
-                explanation: "Pembalikan posisi subjek dan kata kerja bantu setelah kata keterangan negatif untuk memberikan penekanan.",
-                formula: "Negative Adverb (Not only/Hardly) + Auxiliary Verb + Subject + Main Verb"
-            }
+        topic: activeTheme,
+        explanation: "PENGGUNAAN INVERSION: Pembalikan posisi subjek dan auxiliary verb (kata kerja bantu) yang dilakukan ketika kalimat diawali oleh kata keterangan bernada negatif atau terbatas.",
+        formula: "Negative Adverb + Auxiliary Verb (do/does/did/have/is) + Subject + Main Verb",
+        examples: [
+            { en: "Not only did he finish the report, but he also presented it.", id: "Dia tidak hanya menyelesaikan laporan, tetapi juga mempresentasikannya." },
+            { en: "Rarely have I seen such a dedicated student.", id: "Jarang sekali saya melihat siswa yang sededikasi itu." },
+            { en: "Under no circumstances should you leave the door unlocked.", id: "Dalam kondisi bagaimanapun Anda tidak boleh membiarkan pintu tidak terkunci." }
         ],
+        usageNotes: "Ingat! Setelah adverb negatif, pola kalimat berubah seperti bentuk kalimat tanya (auxiliary ditaruh sebelum subjek).",
         quizzes: [
             {
-                question: "She _____ arrived by now; her flight landed two hours ago.",
-                options: ["must have", "should be", "might had", "can have"],
-                answer: "must have",
-                explanation: "Menggunakan 'must have + V3' untuk menyatakan kepastian/kesimpulan kuat tentang kejadian masa lalu."
+                question: "Hardly _____ the house when it started to rain heavily.",
+                options: ["had I left", "I had left", "did I left", "I left"],
+                answer: "had I left",
+                explanation: "Struktur inversi masa lalu membutuhkan kata bantu 'had' sebelum subjek 'I'."
             },
             {
-                question: "Not only _____ the exam, but he also got the top score in class.",
-                options: ["he passed", "did he pass", "he did pass", "passed he"],
-                answer: "did he pass",
-                explanation: "Struktur inversi membutuhkan kata kerja bantu 'did' sebelum subjek 'he'."
+                question: "Seldom _____ such an inspiring speech.",
+                options: ["we hear", "do we hear", "we do hear", "heard we"],
+                answer: "do we hear",
+                explanation: "Kata 'Seldom' di awal kalimat mewajibkan pemakaian auxiliary verb 'do' sebelum subjek 'we'."
             }
         ]
     });
