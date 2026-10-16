@@ -6,7 +6,6 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Metode tidak diizinkan.' });
 
-    // 1. Ambil Semua API Key yang Tersedia
     const keys = [
         process.env.GEMINI_KEY_1, 
         process.env.GEMINI_KEY_2, 
@@ -14,22 +13,21 @@ export default async function handler(req, res) {
         process.env.GEMINI_API_KEY
     ].filter(Boolean);
 
-    if (keys.length === 0) return res.status(500).json({ error: "API Key tidak ditemukan di Environment Variables." });
+    if (keys.length === 0) return res.status(500).json({ error: "API Key tidak ditemukan." });
 
-    // Model resmi dan teruji
-    const models = ["gemini-3.5-flash", "gemini-2.5-flash"];
-
+    const models = ["gemini-2.5-flash", "gemini-1.5-flash"];
     const { exclude = [] } = req.body || {};
 
-    const prompt = `You are an expert English Language Pedagogy AI.
-Generate a high-frequency daily vocabulary batch containing EXACTLY 5 practical words (CEFR B1-C1) and 10 varied quiz questions.
+    const prompt = `You are an expert English Pedagogy AI.
+Generate a high-frequency vocabulary batch containing EXACTLY 5 practical words (CEFR B1-C1) and EXACTLY 12 varied quiz questions based on those 5 words.
 
 CRITICAL RULES:
-1. Avoid repeating past words. DO NOT generate any of the following words: ${JSON.stringify(exclude)}. Choose entirely different words.
-2. For each word, provide an Indonesian-friendly phonetic pronunciation guide (e.g., "Love" -> "Laf", "Religion" -> "relijen").
-3. Output MUST be strictly valid JSON without markdown formatting, matching this exact structure:
+1. Avoid repeating past words. DO NOT generate: ${JSON.stringify(exclude)}.
+2. Provide an Indonesian-friendly phonetic pronunciation guide for each word.
+3. Questions MUST test those 5 words thoroughly (fill-in-the-blank, meaning lookup, definition match).
+
+Output MUST be strictly valid JSON without markdown tags:
 {
-  "theme": "High-Frequency Practical Vocab",
   "words": [
     { 
       "word": "Collaborate", 
@@ -41,17 +39,16 @@ CRITICAL RULES:
   "quizzes": [
     {
       "type": "fill-in-blank", 
-      "question": "Complete the sentence: 'We need to _____ on this project before Friday.'",
+      "question": "Complete sentence: 'We need to _____ on this project before Friday.'",
       "options": ["collaborate", "resilient", "bandwidth", "encrypted"],
       "answer": "collaborate",
-      "explanation": "'Collaborate' berarti bekerja sama dalam menyelesaikan tugas."
+      "explanation": "'Collaborate' berarti bekerja sama."
     }
   ]
 }`;
 
     let lastError = null;
 
-    // 2. Loop Failover (Multi-Key x Multi-Model)
     for (const key of keys) {
         for (const modelName of models) {
             const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`;
@@ -63,7 +60,7 @@ CRITICAL RULES:
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: prompt }] }],
                         generationConfig: { 
-                            temperature: 0.5,
+                            temperature: 0.6,
                             responseMimeType: "application/json" 
                         }
                     })
@@ -72,7 +69,6 @@ CRITICAL RULES:
                 if (!response.ok) {
                     const errData = await response.json().catch(() => ({}));
                     lastError = errData.error?.message || `HTTP ${response.status}`;
-                    console.warn(`[Vocab Failover] Key ...${key.slice(-4)} & Model ${modelName} gagal: ${lastError}`);
                     continue; 
                 }
 
@@ -94,38 +90,23 @@ CRITICAL RULES:
 
             } catch (err) {
                 lastError = err.message;
-                console.warn(`[Vocab API Exception] (${modelName}):`, err.message);
             }
         }
     }
 
-    console.error("Semua API Key Vocab gagal. Menggunakan fallback lokal:", lastError);
-
-    // 3. Fallback Lokal Cadangan
+    // Fallback Lokal
     return res.status(200).json({
-        theme: "High-Frequency Practical Vocab",
         words: [
-            { word: "Collaborate", pronunciation: "kolaboret", meaning: "Bekerja sama", example: "We need to collaborate on this project." },
-            { word: "Resilient", pronunciation: "resilien", meaning: "Tangguh / Cepat bangkit", example: "She is very resilient despite challenges." },
-            { word: "Bandwidth", pronunciation: "bendwid-th", meaning: "Kapasitas waktu/energi/data", example: "I don't have the bandwidth for extra tasks today." },
-            { word: "Encrypted", pronunciation: "engkripted", meaning: "Tersandi / Terenkripsi", example: "Your messages are safely encrypted." },
-            { word: "Milestone", pronunciation: "mailstoun", meaning: "Pencapaian penting", example: "Graduating was a big milestone for him." }
+            { word: "Collaborate", pronunciation: "kolaboret", meaning: "Bekerja sama", example: "We need to collaborate." },
+            { word: "Resilient", pronunciation: "resilien", meaning: "Tangguh / Cepat bangkit", example: "She is very resilient." },
+            { word: "Bandwidth", pronunciation: "bendwid-th", meaning: "Kapasitas waktu/energi", example: "I don't have the bandwidth today." },
+            { word: "Encrypted", pronunciation: "engkripted", meaning: "Tersandi / Terenkripsi", example: "Messages are encrypted." },
+            { word: "Milestone", pronunciation: "mailstoun", meaning: "Pencapaian penting", example: "Graduating was a big milestone." }
         ],
         quizzes: [
-            {
-                type: "fill-in-blank",
-                question: "We need to _____ on this project before Friday.",
-                options: ["collaborate", "resilient", "bandwidth", "encrypted"],
-                answer: "collaborate",
-                explanation: "'Collaborate' berarti bekerja sama."
-            },
-            {
-                type: "definition",
-                question: "Kata yang berarti 'tangguh dan cepat bangkit dari kesulitan' adalah...",
-                options: ["resilient", "encrypted", "milestone", "bandwidth"],
-                answer: "resilient",
-                explanation: "'Resilient' menggambarkan sikap pantang menyerah dan tangguh."
-            }
+            { type: "fill-in-blank", question: "We need to _____ on this project.", options: ["collaborate", "resilient", "bandwidth", "encrypted"], answer: "collaborate", explanation: "'Collaborate' berarti bekerja sama." },
+            { type: "definition", question: "Kata yang berarti 'tangguh' adalah...", options: ["resilient", "encrypted", "milestone", "bandwidth"], answer: "resilient", explanation: "'Resilient' menggambarkan sifat tangguh." },
+            { type: "meaning", question: "Apa arti dari kata 'Milestone'?", options: ["Pencapaian penting", "Bekerja sama", "Kapasitas waktu", "Tersandi"], answer: "Pencapaian penting", explanation: "'Milestone' adalah tonggak pencapaian." }
         ]
     });
 }
