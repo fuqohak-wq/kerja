@@ -2,7 +2,7 @@ export function renderVocab(container) {
     container.innerHTML = `
         <div class="welcome-section">
             <h2>📚 Daily Vocabulary Challenge</h2>
-            <p>Uji daya ingatmu dengan latihan kosakata harian terstruktur!</p>
+            <p>5 Kosakata Baru & Latihan Kuis Bervariasi untuk Memperkuat Daya Ingat</p>
         </div>
 
         <div class="reading-container" style="background:#fff; padding:20px; border-radius:12px; border:1px solid #dadce0; max-width:800px; margin:0 auto;">
@@ -16,9 +16,19 @@ export function renderVocab(container) {
     loadVocabBatch(vocabContent);
 }
 
+// Fungsi pengacak urutan array (Fisher-Yates Shuffle)
+function shuffleArray(array) {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
 async function loadVocabBatch(vocabContent) {
     const today = new Date().toISOString().split('T')[0];
-    const STORAGE_KEY = 'inggrisku_vocab_daily_5_v2';
+    const STORAGE_KEY = 'inggrisku_vocab_daily_rich_v1';
     const SEEN_WORDS_KEY = 'inggrisku_seen_vocab';
 
     let localBatch = null;
@@ -31,10 +41,10 @@ async function loadVocabBatch(vocabContent) {
         seenWords = JSON.parse(localStorage.getItem(SEEN_WORDS_KEY)) || [];
     } catch (e) {}
 
-    const isNeedFetch = !localBatch || localBatch.date !== today || !localBatch.words || localBatch.words.length < 5 || !localBatch.quizzes || localBatch.quizzes.length === 0;
+    const isNeedFetch = !localBatch || localBatch.date !== today || !localBatch.words || localBatch.words.length < 5;
 
     if (isNeedFetch) {
-        vocabContent.innerHTML = `<p style="color:#1a73e8; font-weight:bold;" id="vocab-status-text">🤖 Meminta AI menyiapkan 5 kata baru & kuis harian...</p>`;
+        vocabContent.innerHTML = `<p style="color:#1a73e8; font-weight:bold;" id="vocab-status-text">🤖 Mengunduh 5 kata unggulan & paket kuis dari AI...</p>`;
         
         const maxRetries = 2;
         let attempt = 0;
@@ -45,16 +55,13 @@ async function loadVocabBatch(vocabContent) {
                 attempt++;
                 const statusEl = vocabContent.querySelector('#vocab-status-text');
                 if (statusEl && attempt > 1) {
-                    statusEl.innerText = `🤖 Menghubungkan ulang ke AI Vocab (Percobaan ${attempt}/${maxRetries + 1})...`;
+                    statusEl.innerText = `🤖 Mencoba ulang terhubung ke AI (Percobaan ${attempt}/${maxRetries + 1})...`;
                 }
 
                 const res = await fetch('/api/vocab', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        action: 'get-batch-5',
-                        exclude: seenWords
-                    })
+                    body: JSON.stringify({ exclude: seenWords })
                 });
 
                 const data = await res.json();
@@ -66,17 +73,15 @@ async function loadVocabBatch(vocabContent) {
                 localBatch = {
                     date: today,
                     words: data.words.slice(0, 5),
-                    quizzes: data.quizzes
+                    quizzes: shuffleArray(data.quizzes || []) // Pengacakan kuis
                 };
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(localBatch));
 
                 const newWords = data.words.map(w => w.word.toLowerCase());
                 const updatedSeenWords = Array.from(new Set([...seenWords, ...newWords]));
-                
-                if (updatedSeenWords.length > 150) {
-                    updatedSeenWords.splice(0, updatedSeenWords.length - 150);
-                }
+                if (updatedSeenWords.length > 150) updatedSeenWords.splice(0, updatedSeenWords.length - 150);
                 localStorage.setItem(SEEN_WORDS_KEY, JSON.stringify(updatedSeenWords));
+                
                 success = true;
 
             } catch (err) {
@@ -90,9 +95,7 @@ async function loadVocabBatch(vocabContent) {
                         </div>
                     `;
                     const btnReload = vocabContent.querySelector('#btn-reload-vocab');
-                    if (btnReload) {
-                        btnReload.onclick = () => loadVocabBatch(vocabContent);
-                    }
+                    if (btnReload) btnReload.onclick = () => loadVocabBatch(vocabContent);
                     return;
                 } else {
                     await new Promise(r => setTimeout(r, 1000));
@@ -134,10 +137,10 @@ function renderQuizSystem(quizzes, scoreKey, container) {
         const q = quizzes[currentIndex];
         
         let badgeColor = "#1a73e8";
-        let badgeLabel = "💡 Tebak Arti";
+        let badgeLabel = "💡 Latihan Soal";
         if (q.type === 'fill-in-blank') {
             badgeColor = "#e37400";
-            badgeLabel = "✍️ Isi Bagian Rumpang";
+            badgeLabel = "✍️ Bagian Rumpang";
         } else if (q.type === 'definition') {
             badgeColor = "#137333";
             badgeLabel = "🧩 Cocokkan Definisi";
@@ -177,7 +180,7 @@ function renderQuizSystem(quizzes, scoreKey, container) {
                     e.currentTarget.style.background = '#fce8e6';
                     e.currentTarget.style.borderColor = '#ea4335';
                     e.currentTarget.style.color = '#c5221f';
-                    container.querySelector('#expl-box').innerHTML = `<div style="color:#c5221f; font-size:0.9rem; background:#fce8e6; padding:8px 12px; border-radius:6px;">❌ <strong>Salah.</strong> Jawaban tepat: <strong>${q.answer}</strong>. ${q.explanation || ''}</div>`;
+                    container.querySelector('#expl-box').innerHTML = `<div style="color:#c5221f; font-size:0.9rem; background:#fce8e6; padding:8px 12px; border-radius:6px;">❌ <strong>Salah.</strong> Jawaban tepat: <strong>${q.answer}</strong>.<br>${q.explanation || ''}</div>`;
                 }
                 container.querySelector('#btn-next-q').style.display = 'block';
             };
